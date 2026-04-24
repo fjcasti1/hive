@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/fjcasti1/hive/compare/v0.1.0...v0.1.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* revert homebrew key to brews ([#11](https://github.com/fjcasti1/hive/issues/11)) ([b2edcad](https://github.com/fjcasti1/hive/commit/b2edcad14d40275ca439dd5ada6196feb57eaae4))
+
 ## [0.1.0](https://github.com/fjcasti1/hive/compare/v0.0.9...v0.1.0) (2026-04-24)
 
 
