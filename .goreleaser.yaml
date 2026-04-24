@@ -19,11 +19,12 @@ archives:
 checksum:
   name_template: checksums.txt
 
-brews:
+homebrew:
   - name: hive
     repository:
       owner: fjcasti1
       name: homebrew-hive
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/fjcasti1/hive
     description: Manage multiple AI agent sessions in tmux
     license: MIT
