@@ -1,12 +1,5 @@
 # Changelog
 
-## [1.0.1](https://github.com/fjcasti1/hive/compare/v1.0.0...v1.0.1) (2026-04-24)
-
-
-### Bug Fixes
-
-* switch to homebrew key and explicit token in goreleaser config ([#6](https://github.com/fjcasti1/hive/issues/6)) ([781ec0a](https://github.com/fjcasti1/hive/commit/781ec0a4c00aa00771bd5cc260a41e9ba7320dc6))
-
 ## 1.0.0 (2026-04-24)
 
 
