@@ -1,0 +1,31 @@
+version: 2
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - name: hive
+    repository:
+      owner: fjcasti1
+      name: homebrew-hive
+    homepage: https://github.com/fjcasti1/hive
+    description: Manage multiple AI agent sessions in tmux
+    license: MIT
+    install: bin.install "hive"
+    test: system "#{bin}/hive", "--version"
