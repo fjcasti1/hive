@@ -60,7 +60,7 @@ hive doctor    # verify everything is wired up
 
 ## Configuration
 
-Config lives at `~/.config/hive/config.yaml`. Use `hive config set` to edit:
+Config lives at `~/.hive/config/config.yaml`. Use `hive config set` to edit:
 
 ```bash
 hive config set notifications.macos false        # disable macOS popups

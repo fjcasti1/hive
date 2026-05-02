@@ -99,9 +99,12 @@ main.go               # entrypoint — calls cmd.Execute()
 cmd/
   root.go             # cobra root command, SetVersion, Execute
   notify.go           # `hive notify` subcommand
+  ack.go              # `hive ack` subcommand
+  list.go             # `hive list` subcommand
 internal/
   config/             # config file (~/.hive/config/config.yaml)
   db/                 # SQLite queue + embedded migrations
+  tmux/               # tmux session detection (`tmux.CurrentSession`)
 ```
 
 ## Adding a New Command
