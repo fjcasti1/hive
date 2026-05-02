@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/fjcasti1/hive/compare/v1.1.0...v1.2.0) (2026-05-02)
+
+
+### 🎁 New Features
+
+* add macOS and tmux-bell notification channels ([#24](https://github.com/fjcasti1/hive/issues/24)) ([4247060](https://github.com/fjcasti1/hive/commit/424706062e10f3e12056e8648a1cd23f09afc641))
+* auto-detect tmux session when --session is omitted ([#22](https://github.com/fjcasti1/hive/issues/22)) ([3322744](https://github.com/fjcasti1/hive/commit/332274406d619fc1a94154f6fa0ef5993a1153ec))
+
+
+### ❔ Miscellaneous Chores
+
+* Add sections to CHANGELOG ([#25](https://github.com/fjcasti1/hive/issues/25)) ([c5e9db0](https://github.com/fjcasti1/hive/commit/c5e9db0376b161819c0806b9c1154545f712f00d))
+
 ## [1.1.0](https://github.com/fjcasti1/hive/compare/v1.0.0...v1.1.0) (2026-05-02)
 
 
