@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/fjcasti1/hive/compare/v1.0.0...v1.1.0) (2026-05-02)
+
+
+### Features
+
+* add `notify` command for adding sessions to the queue and throw ([1587c74](https://github.com/fjcasti1/hive/commit/1587c74efb26b82bd6c3abe63bb54def917976e1))
+* add core internal structural tooling ([#20](https://github.com/fjcasti1/hive/issues/20)) ([1587c74](https://github.com/fjcasti1/hive/commit/1587c74efb26b82bd6c3abe63bb54def917976e1))
+
 ## 1.0.0 (2026-04-24)
 
 
