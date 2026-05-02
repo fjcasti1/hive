@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/fjcasti1/hive/internal/db"
+	"github.com/fjcasti1/hive/internal/notifications"
 	"github.com/fjcasti1/hive/internal/tmux"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +28,18 @@ var notifyCmd = &cobra.Command{
 			msg = msg[:cfg.Queue.MaxMessageLength]
 		}
 
-		return db.Enqueue(database, sessionName, msg)
+		// Enqueue the session and message in the database.
+		if err := db.Enqueue(database, sessionName, msg); err != nil {
+			return fmt.Errorf("queue error: %w", err)
+		}
+
+		// Fire notifications immediately after enqueueing, so that the user gets
+		// feedback even if they don't have a tmux status line set up to show
+		// the queue length.
+		channels := notifications.Channels(cfg)
+		notifications.Dispatch(channels, sessionName, msg)
+
+		return nil
 	},
 }
 
