@@ -29,17 +29,22 @@ var listCmd = &cobra.Command{
 				' ',
 				0,
 			)
-			fmt.Fprintln(w, "  #\tsession\tmessage\twaiting")
+			fmt.Fprintln(w, "  #\tsession\tpane\tmessage\twaiting")
 			for i, e := range queueEntries {
 				msg := e.Message
 				if msg == "" {
 					msg = "-"
 				}
+				pane := e.Pane
+				if pane == "" {
+					pane = "-"
+				}
 				fmt.Fprintf(
 					w,
-					"  %d\t%s\t%s\t%s\n",
+					"  %d\t%s\t%s\t%s\t%s\n",
 					i+1,
 					e.Session,
+					pane,
 					msg,
 					timeAgo(e.CreatedAt),
 				)

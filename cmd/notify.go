@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/fjcasti1/hive/internal/db"
 	"github.com/fjcasti1/hive/internal/notifications"
@@ -29,7 +30,8 @@ var notifyCmd = &cobra.Command{
 		}
 
 		// Enqueue the session and message in the database.
-		if err := db.Enqueue(database, sessionName, msg); err != nil {
+		pane := os.Getenv("TMUX_PANE")
+		if err := db.Enqueue(database, sessionName, msg, pane); err != nil {
 			return fmt.Errorf("queue error: %w", err)
 		}
 

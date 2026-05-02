@@ -23,7 +23,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{
-		Notifications: Notifications{Macos: false, TmuxBell: false},
+		Notifications: Notifications{Macos: true, TmuxBell: true},
 		Queue:         Queue{MaxMessageLength: 100},
 	}
 }
