@@ -11,10 +11,11 @@ const (
 	sqliteTimeLayout = "2006-01-02T15:04:05Z"
 
 	queueAddSQL = `
-	INSERT INTO queue (session, message)
-	VALUES ($1, $2)
+	INSERT INTO queue (session, message, pane)
+	VALUES ($1, $2, $3)
 	ON CONFLICT(session) DO UPDATE SET
 		message    = excluded.message,
+	 	pane       = excluded.pane,
 		created_at = CURRENT_TIMESTAMP
 `
 
@@ -22,7 +23,8 @@ const (
 	SELECT
 		id,
 		session,
-		COALESCE(message,''),
+		pane,
+		message,
 		created_at
 	FROM queue
 	ORDER BY created_at ASC
@@ -37,6 +39,7 @@ const (
 type QueueEntry struct {
 	ID        int64
 	Session   string
+	Pane      string
 	Message   string
 	CreatedAt time.Time
 }
@@ -45,8 +48,8 @@ func (e QueueEntry) Target() string {
 	return e.Session
 }
 
-func Enqueue(database *sql.DB, session, message string) error {
-	_, err := database.Exec(queueAddSQL, session, message)
+func Enqueue(database *sql.DB, session, message, pane string) error {
+	_, err := database.Exec(queueAddSQL, session, message, pane)
 	if err != nil {
 		return fmt.Errorf("enqueue session=%q: %w", session, err)
 	}
@@ -66,7 +69,7 @@ func List(database *sql.DB) ([]QueueEntry, error) {
 			e         QueueEntry
 			createdAt string
 		)
-		if err := rows.Scan(&e.ID, &e.Session, &e.Message, &createdAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Session, &e.Pane, &e.Message, &createdAt); err != nil {
 			return nil, err
 		}
 		e.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
