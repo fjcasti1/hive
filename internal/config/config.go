@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,11 +31,32 @@ type History struct {
 	RetentionDays int `yaml:"retention_days"`
 }
 
+// Status struct controls how `hive status` formats its output for
+// human and tmux consumers. JSON output is fixed-schema and not templated.
+type Status struct {
+	HumanFormat string `yaml:"human_format"`
+	TmuxFormat  string `yaml:"tmux_format"`
+}
+
 type Config struct {
 	Notifications Notifications `yaml:"notifications"`
 	Queue         Queue         `yaml:"queue"`
 	History       History       `yaml:"history"`
+	Status        Status        `yaml:"status"`
 }
+
+const defaultHumanFormat = `{{- if eq .Count 0 -}}
+🐝 No agents waiting
+{{- else -}}
+🐝 {{ bold .Count }} agent{{ if gt .Count 1 }}s{{ end }} waiting
+
+  ▸ {{ bold .Next.Session }}{{ if .Next.Message }} — {{ .Next.Message }}{{ end }} {{ dim (printf "(%s)" .Next.Age) }}
+{{- range slice .Queue 1 }}
+    {{ .Session }}{{ if .Message }} — {{ .Message }}{{ end }} {{ dim (printf "(%s)" .Age) }}
+{{- end }}
+{{- end -}}`
+
+const defaultTmuxFormat = `{{- if .Next -}}#[fg=colour220,bold]🐝 {{ .Next.Session }}{{ if .Next.Message }}: {{ .Next.Message }}{{ end }} ({{ .Next.Age }}){{ if gt .Count 1 }} | +{{ len (slice .Queue 1) }}{{ end }}#[fg=default,nobold] {{ end -}}`
 
 func defaultConfig() *Config {
 	return &Config{
@@ -48,27 +70,30 @@ func defaultConfig() *Config {
 		History: History{
 			RetentionDays: 7,
 		},
+		Status: Status{
+			HumanFormat: defaultHumanFormat,
+			TmuxFormat:  defaultTmuxFormat,
+		},
 	}
 }
 
-func configPath() string {
+// ConfigPath returns the path to the config file. Exported so the cmd
+// package can reference it (e.g., in `hive config edit`).
+func ConfigPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".hive", "config.yaml")
 }
 
 // Load reads ~/.hive/config.yaml and returns a Config populated by overlaying
-// the file's contents on top of DefaultConfig. If the file does not exist,
-// Load writes the defaults to disk before returning, so subsequent invocations
-// (and the user) can find and edit the file.
+// the file's contents on top of defaults. If the file does not exist, Load
+// returns in-memory defaults without writing the file — the file appears
+// only when the user explicitly customizes via `hive config set`,
+// `hive config edit`, or `hive config reset`. This avoids the staleness
+// trap of an auto-written file shadowing new defaults in future versions.
 func Load() (*Config, error) {
 	cfg := defaultConfig()
-	data, err := os.ReadFile(configPath())
+	data, err := os.ReadFile(ConfigPath())
 	if err != nil {
 		if os.IsNotExist(err) {
-			// If no configuration file exists, we write the defaults to disk so
-			// the user can find and edit it.
-			if saveErr := Save(cfg); saveErr != nil {
-				return nil, fmt.Errorf("write default config: %w", saveErr)
-			}
 			return cfg, nil
 		}
 		return nil, err
@@ -79,7 +104,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	if err := validate(cfg); err != nil {
-		return nil, fmt.Errorf("invalid config at %s: %w", configPath(), err)
+		return nil, fmt.Errorf("invalid config at %s: %w", ConfigPath(), err)
 	}
 	return cfg, nil
 }
@@ -88,7 +113,7 @@ func Save(cfg *Config) error {
 	if err := validate(cfg); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
-	path := configPath()
+	path := ConfigPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -102,6 +127,11 @@ func Save(cfg *Config) error {
 // Set assigns value to the field at the dotted yaml-tag path key.
 // Supports bool, int, and string field types. Returns an error on unknown
 // key, mid-path leaf, or value that doesn't parse as the field's type.
+//
+// For string-typed fields, a value starting with "@" is interpreted as a
+// preset name (e.g., `@compact`). The preset library is consulted via
+// resolvePreset; unknown preset names return an error listing what's
+// available for the target key.
 func Set(cfg *Config, key, value string) error {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(cfg).Elem()
@@ -115,9 +145,43 @@ func Set(cfg *Config, key, value string) error {
 			return fmt.Errorf("config: unknown key %q", key)
 		}
 		if i == len(parts)-1 {
+			if field.Kind() == reflect.String && strings.HasPrefix(value, "@") {
+				resolved, err := resolvePreset(key, value[1:])
+				if err != nil {
+					return err
+				}
+				value = resolved
+			}
 			return assignField(field, value)
 		}
 		v = field
+	}
+	return nil
+}
+
+// Reset restores the field at the dotted yaml-tag path key to its default
+// value, leaving the rest of cfg untouched. Returns an error on unknown
+// key or mid-path leaf.
+func Reset(cfg *Config, key string) error {
+	defaults := defaultConfig()
+	parts := strings.Split(key, ".")
+	target := reflect.ValueOf(cfg).Elem()
+	source := reflect.ValueOf(defaults).Elem()
+	for i, part := range parts {
+		if target.Kind() != reflect.Struct {
+			return fmt.Errorf("config: %q is not a leaf key", strings.Join(parts[:i], "."))
+		}
+		tField, ok := fieldByYAMLTag(target, part)
+		if !ok {
+			return fmt.Errorf("config: unknown key %q", key)
+		}
+		sField, _ := fieldByYAMLTag(source, part)
+		if i == len(parts)-1 {
+			tField.Set(sField)
+			return nil
+		}
+		target = tField
+		source = sField
 	}
 	return nil
 }
@@ -130,7 +194,30 @@ func validate(cfg *Config) error {
 	if cfg.History.RetentionDays < 0 {
 		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
 	}
+	if _, err := template.New("status.human_format").Funcs(TemplateFuncs()).Parse(cfg.Status.HumanFormat); err != nil {
+		return fmt.Errorf("status.human_format: %w", err)
+	}
+	if _, err := template.New("status.tmux_format").Funcs(TemplateFuncs()).Parse(cfg.Status.TmuxFormat); err != nil {
+		return fmt.Errorf("status.tmux_format: %w", err)
+	}
 	return nil
+}
+
+// TemplateFuncs returns the helper functions available inside
+// status.human_format and status.tmux_format templates, on top of the
+// text/template built-ins. Both the validator (this package) and the
+// executor (cmd package) register these names so any template that parses
+// cleanly at startup also runs cleanly at status time.
+//
+// `bold` and `dim` are no-ops here (return the value as plain text). The
+// cmd-side execution path overrides them with ANSI-emitting versions when
+// the destination writer is a terminal — see cmd/status.go.
+func TemplateFuncs() template.FuncMap {
+	return template.FuncMap{
+		"add":  func(a, b int) int { return a + b },
+		"bold": func(v any) string { return fmt.Sprintf("%v", v) },
+		"dim":  func(v any) string { return fmt.Sprintf("%v", v) },
+	}
 }
 
 func fieldByYAMLTag(v reflect.Value, name string) (reflect.Value, bool) {

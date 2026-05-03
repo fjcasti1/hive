@@ -45,12 +45,11 @@ hive doctor    # verify everything is wired up
 | `hive ack [session-or-index]` | Acknowledge — mark feedback given, move to history |
 | `hive next` | Switch to the next waiting session (FIFO) |
 | `hive peek` | Show next waiting session without switching |
-| `hive list` | Show all waiting sessions |
-| `hive list --watch` | Live-refreshing view |
+| `hive status` | Show queue state (default human; `--format=tmux` or `--format=json` available) |
+| `hive list` | _Deprecated — use `hive status`_ |
 | `hive snooze [session] [duration]` | Hide a session for a while (e.g. `10m`, `1h`) |
 | `hive pause [duration]` | Suppress all notifications (agents still queue) |
 | `hive resume` | Re-enable notifications |
-| `hive status` | tmux status bar output |
 | `hive history` | Show recently resolved sessions |
 | `hive config show` | Print current config as YAML |
 | `hive config set <key> <value>` | Update a config value |
@@ -60,18 +59,58 @@ hive doctor    # verify everything is wired up
 
 ## Configuration
 
-Config lives at `~/.hive/config.yaml`. Use `hive config set` to edit:
+Config lives at `~/.hive/config.yaml`. The file appears the first time you customize something — running `hive` with no config in place uses the built-in defaults silently. Four ways to manage it:
+
+```bash
+hive config show                                 # print the current effective configuration
+hive config set <key> <value>                    # set one key, persist
+hive config reset <key>                          # restore one key to its default
+hive config edit                                 # open the file in $EDITOR with validation
+```
+
+Common settings:
 
 ```bash
 hive config set notifications.macos false        # disable macOS popups
 hive config set notifications.tmux_bell false    # disable tmux bell
 hive config set queue.max_message_length 80      # truncate long messages
-hive config set history.retention_days 14        # days to keep history (0 = no history kept)
+hive config set history.retention_days 14        # days to keep history (0 disables history)
 ```
 
-Run `hive config show` to print the current effective configuration.
+`history.retention_days` controls how long resolved sessions are retained. The purge runs on every `hive` invocation that opens the database, deleting entries with a `resolved_at` older than the cutoff. Setting it to `0` makes the cutoff "now," so every invocation wipes the history table — effectively disabling history.
 
-`history.retention_days` controls how long resolved sessions are retained. The purge runs on every `hive` invocation that opens the database, deleting entries with a `resolved_at` older than the cutoff. Setting `retention_days` to `0` makes the cutoff "now," so every invocation wipes the history table — effectively disabling history entirely.
+### Status format templates
+
+`status.human_format` and `status.tmux_format` are Go [`text/template`](https://pkg.go.dev/text/template) strings rendered against the queue. The default human format produces ANSI-bold/dim output when `hive status` is connected to a terminal; pipes and redirects automatically receive plain text.
+
+For the common cases, use a built-in **preset** instead of writing your own template — prefix the value with `@`:
+
+```bash
+hive config set status.human_format @compact     # one-line summary
+hive config set status.human_format @verbose     # multi-line with pane info
+hive config set status.human_format @default     # back to the shipped default
+hive config set status.tmux_format  @minimal     # tighter status-bar output
+```
+
+`hive config set status.human_format @bogus` will fail and list the available preset names.
+
+If you want to write your own, available template fields are:
+
+| Field | Type | Description |
+|---|---|---|
+| `.Count` | int | Total queue size |
+| `.Next` | object \| nil | Head of the queue; nil when `.Count == 0` |
+| `.Next.Session` | string | Session name |
+| `.Next.Message` | string | Agent's message (may be empty) |
+| `.Next.Pane` | string | tmux pane id (e.g., `%5`) |
+| `.Next.Age` | string | Pre-formatted age (e.g., `2m`) |
+| `.Queue` | array | Full queue, each entry with the same shape as `.Next` |
+
+Helper functions registered on top of `text/template` built-ins: `add a b`, `bold v`, `dim v`. (`bold` and `dim` emit ANSI when stdout is a TTY, plain text otherwise.) The `slice`, `len`, `printf`, `if`/`else`, and `range` you'd expect from text/template all work too. Use conditionals to collapse punctuation when a field is empty, e.g. `{{ if .Next.Message }}: {{ .Next.Message }}{{ end }}`.
+
+If you break a template, `hive config edit` reopens the file with the validation error as a comment so you can fix it. As a last resort, `hive config reset status.human_format` restores the shipped default.
+
+JSON output (`hive status --format=json`) is fixed-schema and not configurable.
 
 ## Claude Code integration
 
@@ -98,7 +137,7 @@ hive notify -m "blocked: need API key"
 | `prefix + A` | Jump to next waiting session |
 | `prefix + a` | Picker — fzf list of waiting sessions, Enter to jump |
 
-The status bar polls `hive status` every 5 seconds. When paused, it shows `⏸ N waiting` instead.
+The status bar polls `hive status --format=tmux` every 5 seconds. The default tmux template produces output like `🐝 my-session: tests done (2m ago) | +1`; customize via `hive config set status.tmux_format "..."`.
 
 ## Contributing
 

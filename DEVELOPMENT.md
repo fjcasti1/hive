@@ -100,11 +100,16 @@ cmd/
   root.go             # cobra root command, SetVersion, Execute
   notify.go           # `hive notify` subcommand
   ack.go              # `hive ack` subcommand
-  list.go             # `hive list` subcommand
+  list.go             # `hive list` (deprecated alias for `hive status`)
+  status.go           # `hive status` (--format=human|tmux|json)
+  history.go          # `hive history` subcommand
+  next.go             # `hive next` subcommand
+  config.go           # `hive config show` / `hive config set`
 internal/
   config/             # config file (~/.hive/config.yaml)
   db/                 # SQLite queue + embedded migrations
   tmux/               # tmux session detection (`tmux.CurrentSession`)
+  notifications/      # macOS osascript + tmux bell channels
 ```
 
 ## Adding a New Command

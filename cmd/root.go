@@ -67,10 +67,10 @@ func init() {
 		historyCmd,
 		nextCmd,
 		configCmd,
+		statusCmd,
 	// 	snoozeCmd,
 	// 	pauseCmd,
 	// 	resumeCmd,
-	// 	statusCmd,
 	// 	installCmd,
 	// 	doctorCmd,
 	)
