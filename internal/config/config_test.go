@@ -202,6 +202,29 @@ func TestLoadRejectsInvalidFile(t *testing.T) {
 	}
 }
 
+func TestValidate_BadHumanTemplate(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Status.HumanFormat = `{{ .BadTemplate`
+	if err := validate(cfg); err == nil {
+		t.Error("expected validate to reject malformed human_format template, got nil")
+	}
+}
+
+func TestValidate_BadTmuxTemplate(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Status.TmuxFormat = `{{ if .Next`
+	if err := validate(cfg); err == nil {
+		t.Error("expected validate to reject malformed tmux_format template, got nil")
+	}
+}
+
+func TestValidate_DefaultTemplatesPass(t *testing.T) {
+	// Defensive: the defaults shipped in defaultConfig must parse cleanly.
+	if err := validate(defaultConfig()); err != nil {
+		t.Errorf("default templates should validate, got: %v", err)
+	}
+}
+
 func TestSetNonLeafKey(t *testing.T) {
 	cfg := defaultConfig()
 	err := Set(cfg, "notifications", "true")

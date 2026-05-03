@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,11 +31,37 @@ type History struct {
 	RetentionDays int `yaml:"retention_days"`
 }
 
+// Status struct controls how `hive status` formats its output for
+// human and tmux consumers. JSON output is fixed-schema and not templated.
+type Status struct {
+	HumanFormat string `yaml:"human_format"`
+	TmuxFormat  string `yaml:"tmux_format"`
+}
+
 type Config struct {
 	Notifications Notifications `yaml:"notifications"`
 	Queue         Queue         `yaml:"queue"`
 	History       History       `yaml:"history"`
+	Status        Status        `yaml:"status"`
 }
+
+const defaultHumanFormat = `
+{{- if eq .Count 0 -}}
+No sessions waiting
+{{- else -}}
+{{ .Count }} session(s) waiting
+
+Next: {{ .Next.Session }}{{ if .Next.Message }} — {{ .Next.Message }}{{ end }} ({{ .Next.Age }})
+
+{{- if gt .Count 1 }}
+{{ range $i, $e := .Queue }}
+	[{{ $i }} {{ $e.Session }}
+{{ end }}
+{{ .Extra }} more in queue
+{{- end -}}
+{{- end -}}`
+
+const defaultTmuxFormat = `{{- if .Next -}}#[fg=colour220,bold]🐝 {{ .Next.Session }}{{ if .Next.Message }}: {{ .Next.Message }}{{ end }} ({{ .Next.Age }}){{ if gt .Extra 0 }} | +{{ .Extra }}{{ end }}#[fg=default,nobold] {{ end -}}`
 
 func defaultConfig() *Config {
 	return &Config{
@@ -47,6 +74,10 @@ func defaultConfig() *Config {
 		},
 		History: History{
 			RetentionDays: 7,
+		},
+		Status: Status{
+			HumanFormat: defaultHumanFormat,
+			TmuxFormat:  defaultTmuxFormat,
 		},
 	}
 }
@@ -129,6 +160,12 @@ func validate(cfg *Config) error {
 	}
 	if cfg.History.RetentionDays < 0 {
 		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
+	}
+	if _, err := template.New("status.human_format").Parse(cfg.Status.HumanFormat); err != nil {
+		return fmt.Errorf("status.human_format: %w", err)
+	}
+	if _, err := template.New("status.tmux_format").Parse(cfg.Status.TmuxFormat); err != nil {
+		return fmt.Errorf("status.tmux_format: %w", err)
 	}
 	return nil
 }

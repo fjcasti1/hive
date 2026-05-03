@@ -2,56 +2,17 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
 	"time"
 
-	"github.com/fjcasti1/hive/internal/db"
 	"github.com/spf13/cobra"
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Show all waiting sessions",
+	Use:        "list",
+	Short:      "Show all waiting sessions",
+	Deprecated: "use 'hive status' instead",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		queueEntries, err := db.List(database)
-		if err != nil {
-			return err
-		}
-		if len(queueEntries) == 0 {
-			fmt.Println("no sessions waiting")
-		} else {
-			w := tabwriter.NewWriter(
-				os.Stdout,
-				0,
-				0,
-				2,
-				' ',
-				0,
-			)
-			fmt.Fprintln(w, "  #\tsession\tpane\tmessage\twaiting")
-			for i, e := range queueEntries {
-				msg := e.Message
-				if msg == "" {
-					msg = "-"
-				}
-				pane := e.Pane
-				if pane == "" {
-					pane = "-"
-				}
-				fmt.Fprintf(
-					w,
-					"  %d\t%s\t%s\t%s\t%s\n",
-					i+1,
-					e.Session,
-					pane,
-					msg,
-					timeAgo(e.CreatedAt),
-				)
-			}
-			w.Flush()
-		}
-		return nil
+		return runStatus(database, cfg, "human")
 	},
 }
 

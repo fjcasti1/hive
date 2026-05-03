@@ -45,12 +45,11 @@ hive doctor    # verify everything is wired up
 | `hive ack [session-or-index]` | Acknowledge — mark feedback given, move to history |
 | `hive next` | Switch to the next waiting session (FIFO) |
 | `hive peek` | Show next waiting session without switching |
-| `hive list` | Show all waiting sessions |
-| `hive list --watch` | Live-refreshing view |
+| `hive status` | Show queue state (default human; `--format=tmux` or `--format=json` available) |
+| `hive list` | _Deprecated — use `hive status`_ |
 | `hive snooze [session] [duration]` | Hide a session for a while (e.g. `10m`, `1h`) |
 | `hive pause [duration]` | Suppress all notifications (agents still queue) |
 | `hive resume` | Re-enable notifications |
-| `hive status` | tmux status bar output |
 | `hive history` | Show recently resolved sessions |
 | `hive config show` | Print current config as YAML |
 | `hive config set <key> <value>` | Update a config value |
@@ -67,11 +66,30 @@ hive config set notifications.macos false        # disable macOS popups
 hive config set notifications.tmux_bell false    # disable tmux bell
 hive config set queue.max_message_length 80      # truncate long messages
 hive config set history.retention_days 14        # days to keep history (0 = no history kept)
+hive config set status.human_format "..."        # template for `hive status` (default human format)
+hive config set status.tmux_format "..."         # template for `hive status --format=tmux`
 ```
 
 Run `hive config show` to print the current effective configuration.
 
 `history.retention_days` controls how long resolved sessions are retained. The purge runs on every `hive` invocation that opens the database, deleting entries with a `resolved_at` older than the cutoff. Setting `retention_days` to `0` makes the cutoff "now," so every invocation wipes the history table — effectively disabling history entirely.
+
+### Status format templates
+
+`status.human_format` and `status.tmux_format` are Go [`text/template`](https://pkg.go.dev/text/template) strings rendered against the queue. Available fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `.Count` | int | Total queue size |
+| `.Extra` | int | `Count - 1` (sessions beyond the head) |
+| `.Next` | object \| nil | Head of the queue; nil when `.Count == 0` |
+| `.Next.Session` | string | Session name |
+| `.Next.Message` | string | Agent's message (may be empty) |
+| `.Next.Pane` | string | tmux pane id (e.g., `%5`) |
+| `.Next.Age` | string | Pre-formatted age (e.g., `2m ago`) |
+| `.Queue` | array | Full queue, each entry with the same shape as `.Next` |
+
+Use conditionals to collapse surrounding punctuation when a field is empty, e.g. `{{ if .Next.Message }}: {{ .Next.Message }}{{ end }}`. JSON output (`--format=json`) is fixed-schema and not configurable.
 
 ## Claude Code integration
 
@@ -98,7 +116,7 @@ hive notify -m "blocked: need API key"
 | `prefix + A` | Jump to next waiting session |
 | `prefix + a` | Picker — fzf list of waiting sessions, Enter to jump |
 
-The status bar polls `hive status` every 5 seconds. When paused, it shows `⏸ N waiting` instead.
+The status bar polls `hive status --format=tmux` every 5 seconds. The default tmux template produces output like `🐝 my-session: tests done (2m ago) | +1`; customize via `hive config set status.tmux_format "..."`.
 
 ## Contributing
 
