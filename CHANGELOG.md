@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.3.0](https://github.com/fjcasti1/hive/compare/v1.2.0...v1.3.0) (2026-05-03)
+
+
+### 🎁 New Features
+
+* add history command and persist acked notifications ([#28](https://github.com/fjcasti1/hive/issues/28)) ([0a0d7e7](https://github.com/fjcasti1/hive/commit/0a0d7e7f077bcf4a48bc180ab0690e4da6af4c63))
+* Enable macOS and tmux-bell notifications by default in ([596e0bb](https://github.com/fjcasti1/hive/commit/596e0bba24dac09cee03aac5bc26d2e14ad185e6))
+* track tmux pane in queue entries ([#26](https://github.com/fjcasti1/hive/issues/26)) ([596e0bb](https://github.com/fjcasti1/hive/commit/596e0bba24dac09cee03aac5bc26d2e14ad185e6))
+
+
+### 🐛 Bug Fixes
+
+* use RFC3339 for SQLite timestamps and add notified column to history ([#29](https://github.com/fjcasti1/hive/issues/29)) ([908c2c8](https://github.com/fjcasti1/hive/commit/908c2c8724ffa6cbd7d0c7139a58f6f303e3f191))
+
+
+### 📚 Documentation
+
+* Remove stray trailing `## Changelog` header from CHANGELOG ([596e0bb](https://github.com/fjcasti1/hive/commit/596e0bba24dac09cee03aac5bc26d2e14ad185e6))
+
+
+### 💫 Code Refactoring
+
+* `db.Delete` to use `RETURNING` and return the deleted row ([0a0d7e7](https://github.com/fjcasti1/hive/commit/0a0d7e7f077bcf4a48bc180ab0690e4da6af4c63))
+* Introduce `db.Querier` interface so DB functions accept either ([0a0d7e7](https://github.com/fjcasti1/hive/commit/0a0d7e7f077bcf4a48bc180ab0690e4da6af4c63))
+* Unexport `QueueEntry` → `queueEntry` since it's only used ([0a0d7e7](https://github.com/fjcasti1/hive/commit/0a0d7e7f077bcf4a48bc180ab0690e4da6af4c63))
+
 ## [1.2.0](https://github.com/fjcasti1/hive/compare/v1.1.0...v1.2.0) (2026-05-02)
 
 
