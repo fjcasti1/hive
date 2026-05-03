@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.0](https://github.com/fjcasti1/hive/compare/v1.3.0...v1.4.0) (2026-05-03)
+
+
+### 🎁 New Features
+
+* add next command to switch to oldest waiting session ([#30](https://github.com/fjcasti1/hive/issues/30)) ([78de2b7](https://github.com/fjcasti1/hive/commit/78de2b7c28dee650a650a8a4a9f5e8f78855816e))
+
+
+### 🐛 Bug Fixes
+
+* Stabilize queue ordering with `id ASC` tiebreaker when multiple ([78de2b7](https://github.com/fjcasti1/hive/commit/78de2b7c28dee650a650a8a4a9f5e8f78855816e))
+
+
+### 💫 Code Refactoring
+
+* Add `tmux.SwitchTo` helper that wraps `tmux switch-client -t ([78de2b7](https://github.com/fjcasti1/hive/commit/78de2b7c28dee650a650a8a4a9f5e8f78855816e))
+* Extract `ackSession` helper from `ack.go` so both `ack` and ([78de2b7](https://github.com/fjcasti1/hive/commit/78de2b7c28dee650a650a8a4a9f5e8f78855816e))
+
+
+### 🧪 Tests
+
+* Add four table-driven DB tests for `Peek`: empty queue, single ([78de2b7](https://github.com/fjcasti1/hive/commit/78de2b7c28dee650a650a8a4a9f5e8f78855816e))
+
 ## [1.3.0](https://github.com/fjcasti1/hive/compare/v1.2.0...v1.3.0) (2026-05-03)
 
 
