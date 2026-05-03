@@ -22,6 +22,10 @@ const (
 	INSERT INTO history (session, message, notified_at)
 	VALUES ($1, $2, strftime('%Y-%m-%d %H:%M:%S', $3))
 `
+	historyPurgeSQL = `
+	DELETE FROM history
+	WHERE resolved_at < datetime('now', ?)
+`
 )
 
 type HistoryEntry struct {
@@ -60,6 +64,17 @@ func AddHistory(q Querier, session, message string, notifiedAt time.Time) error 
 	_, err := q.Exec(historyAddSQL, session, message, notifiedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("add history session=%q: %w", session, err)
+	}
+	return nil
+}
+
+func PurgeHistory(q Querier, retentionDays int) error {
+	_, err := q.Exec(
+		historyPurgeSQL,
+		fmt.Sprintf("-%d days", retentionDays),
+	)
+	if err != nil {
+		return fmt.Errorf("purge history retention=%d days: %w", retentionDays, err)
 	}
 	return nil
 }

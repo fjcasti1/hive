@@ -37,7 +37,7 @@ func WithTx(database *sql.DB, fn func(*sql.Tx) error) error {
 }
 
 func DBPath() string {
-	return filepath.Join(os.Getenv("HOME"), ".hive", "db", "hive.db")
+	return filepath.Join(os.Getenv("HOME"), ".hive", "hive.db")
 }
 
 func Open() (*sql.DB, error) {

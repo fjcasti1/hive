@@ -15,10 +15,7 @@ var ackCmd = &cobra.Command{
 	Short: "Acknowledge a session — mark feedback given and move to history",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		sessionName, err := cmd.Flags().GetString("session")
-		if err != nil {
-			return err
-		}
+		sessionName, _ := cmd.Flags().GetString("session")
 
 		if sessionName == "" {
 			if len(args) > 0 {
