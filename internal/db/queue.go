@@ -3,6 +3,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -33,10 +34,11 @@ const (
 	queueDeleteSQL = `
 	DELETE FROM queue
 	WHERE session = $1
+	RETURNING session, message, created_at
 `
 )
 
-type QueueEntry struct {
+type queueEntry struct {
 	ID        int64
 	Session   string
 	Pane      string
@@ -44,29 +46,29 @@ type QueueEntry struct {
 	CreatedAt time.Time
 }
 
-func (e QueueEntry) Target() string {
+func (e queueEntry) Target() string {
 	return e.Session
 }
 
-func Enqueue(database *sql.DB, session, message, pane string) error {
-	_, err := database.Exec(queueAddSQL, session, message, pane)
+func Enqueue(q Querier, session, message, pane string) error {
+	_, err := q.Exec(queueAddSQL, session, message, pane)
 	if err != nil {
 		return fmt.Errorf("enqueue session=%q: %w", session, err)
 	}
 	return nil
 }
 
-func List(database *sql.DB) ([]QueueEntry, error) {
-	rows, err := database.Query(queueListSQL)
+func List(q Querier) ([]queueEntry, error) {
+	rows, err := q.Query(queueListSQL)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var entries []QueueEntry
+	var entries []queueEntry
 	for rows.Next() {
 		var (
-			e         QueueEntry
+			e         queueEntry
 			createdAt string
 		)
 		if err := rows.Scan(&e.ID, &e.Session, &e.Pane, &e.Message, &createdAt); err != nil {
@@ -78,11 +80,24 @@ func List(database *sql.DB) ([]QueueEntry, error) {
 	return entries, rows.Err()
 }
 
-func Delete(database *sql.DB, session string) (bool, error) {
-	res, err := database.Exec(queueDeleteSQL, session)
-	if err != nil {
-		return false, fmt.Errorf("delete session=%q: %w", session, err)
+type deletedQueueEntry struct {
+	Session    string
+	Message    string
+	NotifiedAt time.Time
+}
+
+func Delete(q Querier, session string) (*deletedQueueEntry, error) {
+	var (
+		e         deletedQueueEntry
+		createdAt string
+	)
+	err := q.QueryRow(queueDeleteSQL, session).Scan(&e.Session, &e.Message, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	if err != nil {
+		return nil, fmt.Errorf("delete session=%q: %w", session, err)
+	}
+	e.NotifiedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+	return &e, nil
 }

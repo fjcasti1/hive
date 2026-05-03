@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"strconv"
 
@@ -43,14 +44,22 @@ var ackCmd = &cobra.Command{
 			}
 		}
 
-		wasDeleted, err := db.Delete(database, sessionName)
+		var found bool
+		err = db.WithTx(database, func(tx *sql.Tx) error {
+			deleted, err := db.Delete(tx, sessionName)
+			if err != nil || deleted == nil {
+				return err
+			}
+			found = true
+			return db.AddHistory(tx, deleted.Session, deleted.Message, deleted.NotifiedAt)
+		})
 		if err != nil {
-			return err
+			return fmt.Errorf("ack session=%q: %w", sessionName, err)
 		}
-		if wasDeleted {
-			fmt.Printf("Acknowledged session %q\n", sessionName)
-		} else {
+		if !found {
 			fmt.Printf("No waiting session found for %q\n", sessionName)
+		} else {
+			fmt.Printf("Acknowledged session %q\n", sessionName)
 		}
 		return nil
 	},
