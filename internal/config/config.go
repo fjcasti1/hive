@@ -45,23 +45,18 @@ type Config struct {
 	Status        Status        `yaml:"status"`
 }
 
-const defaultHumanFormat = `
-{{- if eq .Count 0 -}}
-No sessions waiting
+const defaultHumanFormat = `{{- if eq .Count 0 -}}
+🐝 No agents waiting
 {{- else -}}
-{{ .Count }} session(s) waiting
+🐝 {{ bold .Count }} agent{{ if gt .Count 1 }}s{{ end }} waiting
 
-Next: {{ .Next.Session }}{{ if .Next.Message }} — {{ .Next.Message }}{{ end }} ({{ .Next.Age }})
-
-{{- if gt .Count 1 }}
-{{ range $i, $e := .Queue }}
-	[{{ $i }} {{ $e.Session }}
-{{ end }}
-{{ .Extra }} more in queue
-{{- end -}}
+  ▸ {{ bold .Next.Session }}{{ if .Next.Message }} — {{ .Next.Message }}{{ end }} {{ dim (printf "(%s)" .Next.Age) }}
+{{- range slice .Queue 1 }}
+    {{ .Session }}{{ if .Message }} — {{ .Message }}{{ end }} {{ dim (printf "(%s)" .Age) }}
+{{- end }}
 {{- end -}}`
 
-const defaultTmuxFormat = `{{- if .Next -}}#[fg=colour220,bold]🐝 {{ .Next.Session }}{{ if .Next.Message }}: {{ .Next.Message }}{{ end }} ({{ .Next.Age }}){{ if gt .Extra 0 }} | +{{ .Extra }}{{ end }}#[fg=default,nobold] {{ end -}}`
+const defaultTmuxFormat = `{{- if .Next -}}#[fg=colour220,bold]🐝 {{ .Next.Session }}{{ if .Next.Message }}: {{ .Next.Message }}{{ end }} ({{ .Next.Age }}){{ if gt .Count 1 }} | +{{ len (slice .Queue 1) }}{{ end }}#[fg=default,nobold] {{ end -}}`
 
 func defaultConfig() *Config {
 	return &Config{
@@ -161,13 +156,30 @@ func validate(cfg *Config) error {
 	if cfg.History.RetentionDays < 0 {
 		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
 	}
-	if _, err := template.New("status.human_format").Parse(cfg.Status.HumanFormat); err != nil {
+	if _, err := template.New("status.human_format").Funcs(TemplateFuncs()).Parse(cfg.Status.HumanFormat); err != nil {
 		return fmt.Errorf("status.human_format: %w", err)
 	}
-	if _, err := template.New("status.tmux_format").Parse(cfg.Status.TmuxFormat); err != nil {
+	if _, err := template.New("status.tmux_format").Funcs(TemplateFuncs()).Parse(cfg.Status.TmuxFormat); err != nil {
 		return fmt.Errorf("status.tmux_format: %w", err)
 	}
 	return nil
+}
+
+// TemplateFuncs returns the helper functions available inside
+// status.human_format and status.tmux_format templates, on top of the
+// text/template built-ins. Both the validator (this package) and the
+// executor (cmd package) register these names so any template that parses
+// cleanly at startup also runs cleanly at status time.
+//
+// `bold` and `dim` are no-ops here (return the value as plain text). The
+// cmd-side execution path overrides them with ANSI-emitting versions when
+// the destination writer is a terminal — see cmd/status.go.
+func TemplateFuncs() template.FuncMap {
+	return template.FuncMap{
+		"add":  func(a, b int) int { return a + b },
+		"bold": func(v any) string { return fmt.Sprintf("%v", v) },
+		"dim":  func(v any) string { return fmt.Sprintf("%v", v) },
+	}
 }
 
 func fieldByYAMLTag(v reflect.Value, name string) (reflect.Value, bool) {

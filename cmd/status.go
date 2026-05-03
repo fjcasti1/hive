@@ -97,11 +97,41 @@ func buildStatusData(database *sql.DB) (*statusData, error) {
 }
 
 // execTemplate parses tmplStr and writes its rendering of data to w.
-// Uses only text/template built-ins — no custom function map.
+// Registers the same function NAMES as config.TemplateFuncs(), but with
+// ANSI-emitting bold/dim implementations when w is a terminal.
 func execTemplate(w io.Writer, tmplStr string, data *statusData) error {
-	tmpl, err := template.New("hive_status").Parse(tmplStr)
+	funcs := executeFuncs(isWriterTTY(w))
+	tmpl, err := template.New("hive_status").Funcs(funcs).Parse(tmplStr)
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
 	}
 	return tmpl.Execute(w, data)
+}
+
+// executeFuncs returns the runtime FuncMap for status template execution.
+// Starts from config.TemplateFuncs() (text-only, used by validation) and
+// overrides bold/dim with ANSI-emitting versions when useColor is true.
+func executeFuncs(useColor bool) template.FuncMap {
+	funcs := config.TemplateFuncs()
+	if useColor {
+		funcs["bold"] = func(v any) string { return "\x1b[1m" + fmt.Sprintf("%v", v) + "\x1b[22m" }
+		funcs["dim"] = func(v any) string { return "\x1b[2m" + fmt.Sprintf("%v", v) + "\x1b[22m" }
+	}
+	return funcs
+}
+
+// isWriterTTY reports whether w is a terminal — i.e. an *os.File whose
+// underlying mode includes os.ModeCharDevice. Pipes, redirected files,
+// and bytes.Buffer (in tests) all return false, so ANSI codes never leak
+// into non-interactive consumers.
+func isWriterTTY(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }

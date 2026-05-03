@@ -127,6 +127,12 @@ func TestStatusJSON_EmptyShape(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
+	if got["count"] != float64(0) {
+		t.Errorf("count = %v, want 0", got["count"])
+	}
+	if got["next"] != nil {
+		t.Errorf("next = %v, want null", got["next"])
+	}
 	queue, ok := got["queue"].([]any)
 	if !ok {
 		t.Fatalf("queue is not a list: %T", got["queue"])
@@ -134,12 +140,9 @@ func TestStatusJSON_EmptyShape(t *testing.T) {
 	if len(queue) != 0 {
 		t.Errorf("queue len = %d, want 0", len(queue))
 	}
-	// Derivable fields must not be in the JSON output — consumers compute
-	// them from queue.
-	for _, key := range []string{"count", "next", "extra"} {
-		if _, present := got[key]; present {
-			t.Errorf("derivable field %q must not be in JSON output", key)
-		}
+	// Extra was removed from the struct entirely — it must not appear.
+	if _, present := got["extra"]; present {
+		t.Error("extra field should not be in JSON output")
 	}
 }
 
@@ -154,20 +157,21 @@ func TestStatusJSON_PopulatedShape(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	queue, ok := got["queue"].([]any)
-	if !ok {
-		t.Fatalf("queue is not a list: %T", got["queue"])
+	if got["count"] != float64(3) {
+		t.Errorf("count = %v, want 3", got["count"])
 	}
+	next, ok := got["next"].(map[string]any)
+	if !ok {
+		t.Fatalf("next is not an object: %T", got["next"])
+	}
+	if next["session"] != "alpha" {
+		t.Errorf("next.session = %v, want alpha", next["session"])
+	}
+	queue := got["queue"].([]any)
 	if len(queue) != 3 {
 		t.Errorf("queue len = %d, want 3", len(queue))
 	}
-	first := queue[0].(map[string]any)
-	if first["session"] != "alpha" {
-		t.Errorf("queue[0].session = %v, want alpha", first["session"])
-	}
-	for _, key := range []string{"count", "next", "extra"} {
-		if _, present := got[key]; present {
-			t.Errorf("derivable field %q must not be in JSON output", key)
-		}
+	if _, present := got["extra"]; present {
+		t.Error("extra field should not be in JSON output")
 	}
 }
