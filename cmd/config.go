@@ -42,7 +42,7 @@ Examples:
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key, value := args[0], args[1]
-		if err := config.Set(&cfg, key, value); err != nil {
+		if err := config.Set(cfg, key, value); err != nil {
 			return err
 		}
 		if err := config.Save(cfg); err != nil {

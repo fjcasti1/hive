@@ -61,6 +61,38 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 }
 
+// TestLoadPartialFileKeepsDefaults guards against regressing the
+// defaults-overlay behavior. A YAML file that only sets some keys must not
+// zero out the others.
+func TestLoadPartialFileKeepsDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	partial := []byte("queue:\n    max_message_length: 50\n")
+	if err := os.WriteFile(ConfigPath(), partial, 0o644); err != nil {
+		t.Fatalf("write partial config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, want := cfg.Queue.MaxMessageLength, 50; got != want {
+		t.Errorf("MaxMessageLength = %d, want %d (override)", got, want)
+	}
+	if !cfg.Notifications.Macos {
+		t.Error("Notifications.Macos = false; want true (default preserved)")
+	}
+	if !cfg.Notifications.TmuxBell {
+		t.Error("Notifications.TmuxBell = false; want true (default preserved)")
+	}
+	if got, want := cfg.History.RetentionDays, 7; got != want {
+		t.Errorf("History.RetentionDays = %d, want %d (default preserved)", got, want)
+	}
+}
+
 func TestConfigPath(t *testing.T) {
 	t.Setenv("HOME", "/test/home")
 	got := ConfigPath()
@@ -72,7 +104,7 @@ func TestConfigPath(t *testing.T) {
 
 func TestSetBool(t *testing.T) {
 	cfg := DefaultConfig()
-	if err := Set(&cfg, "notifications.macos", "false"); err != nil {
+	if err := Set(cfg, "notifications.macos", "false"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	if cfg.Notifications.Macos {
@@ -82,7 +114,7 @@ func TestSetBool(t *testing.T) {
 
 func TestSetInt(t *testing.T) {
 	cfg := DefaultConfig()
-	if err := Set(&cfg, "queue.max_message_length", "250"); err != nil {
+	if err := Set(cfg, "queue.max_message_length", "250"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	if got, want := cfg.Queue.MaxMessageLength, 250; got != want {
@@ -92,7 +124,7 @@ func TestSetInt(t *testing.T) {
 
 func TestSetUnknownKey(t *testing.T) {
 	cfg := DefaultConfig()
-	err := Set(&cfg, "foo.bar", "baz")
+	err := Set(cfg, "foo.bar", "baz")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
 	}
@@ -100,7 +132,7 @@ func TestSetUnknownKey(t *testing.T) {
 
 func TestSetUnknownNestedKey(t *testing.T) {
 	cfg := DefaultConfig()
-	err := Set(&cfg, "notifications.unknown_field", "true")
+	err := Set(cfg, "notifications.unknown_field", "true")
 	if err == nil {
 		t.Fatal("expected error for unknown nested key, got nil")
 	}
@@ -108,7 +140,7 @@ func TestSetUnknownNestedKey(t *testing.T) {
 
 func TestSetWrongType(t *testing.T) {
 	cfg := DefaultConfig()
-	err := Set(&cfg, "notifications.macos", "maybe")
+	err := Set(cfg, "notifications.macos", "maybe")
 	if err == nil {
 		t.Fatal("expected error for non-bool value, got nil")
 	}
@@ -116,7 +148,7 @@ func TestSetWrongType(t *testing.T) {
 
 func TestSetNonLeafKey(t *testing.T) {
 	cfg := DefaultConfig()
-	err := Set(&cfg, "notifications", "true")
+	err := Set(cfg, "notifications", "true")
 	if err == nil {
 		t.Fatal("expected error when assigning to a non-leaf key, got nil")
 	}

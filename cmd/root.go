@@ -27,7 +27,7 @@ import (
 
 var (
 	version  = "dev"
-	cfg      config.Config
+	cfg      *config.Config
 	database *sql.DB
 
 	rootCmd = &cobra.Command{

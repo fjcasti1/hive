@@ -12,7 +12,7 @@ type Channel interface {
 	Name() string
 }
 
-func Channels(cfg config.Config) []Channel {
+func Channels(cfg *config.Config) []Channel {
 	var chs []Channel
 	if cfg.Notifications.Macos {
 		chs = append(chs, NewMacOSChannel())

@@ -32,11 +32,18 @@ type Config struct {
 	History       History       `yaml:"history"`
 }
 
-func DefaultConfig() Config {
-	return Config{
-		Notifications: Notifications{Macos: true, TmuxBell: true},
-		Queue:         Queue{MaxMessageLength: 100},
-		History:       History{RetentionDays: 7},
+func DefaultConfig() *Config {
+	return &Config{
+		Notifications: Notifications{
+			Macos:    true,
+			TmuxBell: true,
+		},
+		Queue: Queue{
+			MaxMessageLength: 100,
+		},
+		History: History{
+			RetentionDays: 7,
+		},
 	}
 }
 
@@ -48,22 +55,29 @@ func ConfigPath() string {
 // the file's contents on top of DefaultConfig. If the file does not exist,
 // Load writes the defaults to disk before returning, so subsequent invocations
 // (and the user) can find and edit the file.
-func Load() (Config, error) {
+func Load() (*Config, error) {
 	cfg := DefaultConfig()
 	data, err := os.ReadFile(ConfigPath())
-	if os.IsNotExist(err) {
-		if saveErr := Save(cfg); saveErr != nil {
-			return cfg, fmt.Errorf("write default config: %w", saveErr)
-		}
-		return cfg, nil
-	}
 	if err != nil {
-		return cfg, err
+		if os.IsNotExist(err) {
+			// If no configuration file exists, we write the defaults to disk so
+			// the user can find and edit it.
+			if saveErr := Save(cfg); saveErr != nil {
+				return nil, fmt.Errorf("write default config: %w", saveErr)
+			}
+			return cfg, nil
+		}
+		return nil, err
 	}
-	return cfg, yaml.Unmarshal(data, &cfg)
+	// Unmarshal into the defaults-populated struct so keys absent from the
+	// YAML keep their default values (partial config files are valid).
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	return cfg, nil
 }
 
-func Save(cfg Config) error {
+func Save(cfg *Config) error {
 	path := ConfigPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
