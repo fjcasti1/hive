@@ -87,7 +87,7 @@ hive config set history.retention_days 14        # days to keep history (0 disab
 
 ### Status format templates
 
-`status.human_format` and `status.tmux_format` are stored in YAML as **bare names**:
+`status.human_format` and `status.tmux_format` are stored in YAML as **bare names** — either a built-in preset or a custom template at `~/.hive/templates/<name>.tmpl`:
 
 ```yaml
 status:
@@ -96,74 +96,13 @@ status:
     human_format: example      # custom template at ~/.hive/templates/example.tmpl
 ```
 
-The resolver checks the preset library for the key first, then `~/.hive/templates/<name>.tmpl`. Preset names (`default`, `compact`, `verbose`, `minimal`) are reserved — `template new compact` is rejected so a custom file can never silently shadow a preset.
-
 ```bash
-hive config set status.human_format compact     # use the built-in compact preset
-hive config set status.tmux_format  minimal     # use the built-in tmux minimal
-hive config set status.human_format example     # use ~/.hive/templates/example.tmpl
+hive config set status.human_format compact     # built-in compact preset
+hive config template new mine                   # create + edit a custom template
+hive config set status.human_format mine        # use the custom template
 ```
 
-Set fails fast on names that don't resolve to anything (preset or file). The YAML stays a single bare word.
-
-### Authoring a custom template
-
-Templates are `.tmpl` files in `~/.hive/templates/`, named whatever you like (as long as the name isn't a reserved preset). They're decoupled from configuration — creating a template doesn't auto-wire it; pointing a config key at it is a separate step.
-
-```bash
-# 1. Create a new template, open it in $EDITOR. Validates on save.
-hive config template new example
-
-# 2. Point a config key at it (bare name).
-hive config set status.human_format example
-# or run `hive config edit` and edit the value manually.
-```
-
-To start from an existing template instead of an empty file:
-
-```bash
-hive config template new mine --from compact
-# Seeds with the content of the 'compact' preset.
-
-hive config template new other-mine --from example
-# Seeds from another custom template.
-```
-
-To re-open a template later:
-
-```bash
-hive config template edit example
-```
-
-To list what you have:
-
-```bash
-hive config template list
-```
-
-`new` errors if a file by that name already exists OR if the name is a reserved preset; `edit` errors if it doesn't exist. Neither modifies the YAML — that's the job of `hive config set` or `hive config edit`.
-
-Edits to a `.tmpl` file take effect on the next `hive status` invocation. The YAML stores just the bare name.
-
-The underlying primitives are `hive config preset` (print a built-in to stdout) and `hive config set` (point a key at a name) — useful if you want to script the workflow.
-
-The default human format produces ANSI-bold/dim output when `hive status` is connected to a terminal; pipes and redirects automatically receive plain text.
-
-Templates are Go [`text/template`](https://pkg.go.dev/text/template) strings. Available fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `.Count` | int | Total queue size |
-| `.Next` | object \| nil | Head of the queue; nil when `.Count == 0` |
-| `.Next.Session` | string | Session name |
-| `.Next.Message` | string | Agent's message (may be empty) |
-| `.Next.Pane` | string | tmux pane id (e.g., `%5`) |
-| `.Next.Age` | string | Pre-formatted age (e.g., `2m`) |
-| `.Queue` | array | Full queue, each entry with the same shape as `.Next` |
-
-Helper functions registered on top of `text/template` built-ins: `add a b`, `bold v`, `dim v`. (`bold` and `dim` emit ANSI when stdout is a TTY, plain text otherwise.) The `slice`, `len`, `printf`, `if`/`else`, and `range` you'd expect from text/template all work too. Use conditionals to collapse punctuation when a field is empty, e.g. `{{ if .Next.Message }}: {{ .Next.Message }}{{ end }}`.
-
-If you break a template, `hive config edit` reopens the file with the validation error as a comment so you can fix it. As a last resort, `hive config reset status.human_format` restores the shipped default.
+For preset listings, custom-template authoring, the available data fields, helper functions, and template syntax: **see [TEMPLATES.md](./TEMPLATES.md)**.
 
 JSON output (`hive status --format=json`) is fixed-schema and not configurable.
 
