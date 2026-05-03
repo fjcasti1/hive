@@ -38,7 +38,8 @@ Available keys:
 
 Examples:
   hive config set notifications.macos false
-  hive config set queue.max_message_length 200`,
+  hive config set queue.max_message_length 200
+`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key, value := args[0], args[1]
@@ -54,5 +55,8 @@ Examples:
 }
 
 func init() {
-	configCmd.AddCommand(configShowCmd, configSetCmd)
+	configCmd.AddCommand(
+		configShowCmd,
+		configSetCmd,
+	)
 }

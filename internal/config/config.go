@@ -21,8 +21,12 @@ type Queue struct {
 }
 
 type History struct {
-	// RetentionDays purges history entries older than this on `db.Open`.
-	// 0 or negative disables purging.
+	// RetentionDays controls how long resolved sessions stay in the history
+	// table. The purge runs on every db.Open and deletes rows whose
+	// resolved_at is older than (now - RetentionDays days). Setting
+	// RetentionDays to 0 wipes the table on every invocation, effectively
+	// disabling history. Must be >= 0; negative values are rejected at
+	// validation time.
 	RetentionDays int `yaml:"retention_days"`
 }
 
@@ -32,7 +36,7 @@ type Config struct {
 	History       History       `yaml:"history"`
 }
 
-func DefaultConfig() *Config {
+func defaultConfig() *Config {
 	return &Config{
 		Notifications: Notifications{
 			Macos:    true,
@@ -47,7 +51,7 @@ func DefaultConfig() *Config {
 	}
 }
 
-func ConfigPath() string {
+func configPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".hive", "config.yaml")
 }
 
@@ -56,8 +60,8 @@ func ConfigPath() string {
 // Load writes the defaults to disk before returning, so subsequent invocations
 // (and the user) can find and edit the file.
 func Load() (*Config, error) {
-	cfg := DefaultConfig()
-	data, err := os.ReadFile(ConfigPath())
+	cfg := defaultConfig()
+	data, err := os.ReadFile(configPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			// If no configuration file exists, we write the defaults to disk so
@@ -74,11 +78,17 @@ func Load() (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	if err := validate(cfg); err != nil {
+		return nil, fmt.Errorf("invalid config at %s: %w", configPath(), err)
+	}
 	return cfg, nil
 }
 
 func Save(cfg *Config) error {
-	path := ConfigPath()
+	if err := validate(cfg); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
+	}
+	path := configPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -108,6 +118,17 @@ func Set(cfg *Config, key, value string) error {
 			return assignField(field, value)
 		}
 		v = field
+	}
+	return nil
+}
+
+// validate returns an error if any field of cfg holds a value that hive cannot handle.
+func validate(cfg *Config) error {
+	if cfg.Queue.MaxMessageLength <= 0 {
+		return fmt.Errorf("queue.max_message_length must be > 0, got %d", cfg.Queue.MaxMessageLength)
+	}
+	if cfg.History.RetentionDays < 0 {
+		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
 	}
 	return nil
 }

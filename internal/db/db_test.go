@@ -130,6 +130,91 @@ func TestPeekTiebreaksOnID(t *testing.T) {
 	}
 }
 
+func TestPurgeHistory_EmptyTable(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	if err := PurgeHistory(database, 7); err != nil {
+		t.Errorf("PurgeHistory on empty table: %v", err)
+	}
+}
+
+func TestPurgeHistory_DeletesRowsOlderThanCutoff(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	// Two rows: one old (10 days ago), one fresh (now).
+	insert := `INSERT INTO history (session, message, notified_at, resolved_at)
+		VALUES (?, ?, ?, ?)`
+	if _, err := database.Exec(insert,
+		"old", "stale", "2025-01-01 00:00:00", "2025-01-01 00:00:00",
+	); err != nil {
+		t.Fatalf("insert old: %v", err)
+	}
+	if _, err := database.Exec(insert,
+		"fresh", "recent", "2099-01-01 00:00:00", "2099-01-01 00:00:00",
+	); err != nil {
+		t.Fatalf("insert fresh: %v", err)
+	}
+
+	if err := PurgeHistory(database, 7); err != nil {
+		t.Fatalf("PurgeHistory: %v", err)
+	}
+
+	var sessions []string
+	rows, err := database.Query(`SELECT session FROM history ORDER BY session`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		sessions = append(sessions, s)
+	}
+	if len(sessions) != 1 || sessions[0] != "fresh" {
+		t.Errorf("after purge expected only [fresh], got %v", sessions)
+	}
+}
+
+func TestPurgeHistory_ZeroWipesEverything(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	insert := `INSERT INTO history (session, message, notified_at, resolved_at)
+		VALUES (?, ?, ?, ?)`
+	for _, sess := range []string{"a", "b", "c"} {
+		if _, err := database.Exec(insert,
+			sess, "msg", "2025-01-01 00:00:00", "2025-01-01 00:00:00",
+		); err != nil {
+			t.Fatalf("insert %s: %v", sess, err)
+		}
+	}
+
+	if err := PurgeHistory(database, 0); err != nil {
+		t.Fatalf("PurgeHistory(0): %v", err)
+	}
+
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM history`).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("retention_days=0 should wipe all rows, got %d remaining", count)
+	}
+}
+
 func TestPeekReturnsOldest(t *testing.T) {
 	database, err := openMem()
 	if err != nil {
