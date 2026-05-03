@@ -59,13 +59,19 @@ hive doctor    # verify everything is wired up
 
 ## Configuration
 
-Config lives at `~/.hive/config.yaml`. The file appears the first time you customize something — running `hive` with no config in place uses the built-in defaults silently. Four ways to manage it:
+Config lives at `~/.hive/config.yaml`. The file appears the first time you customize something — running `hive` with no config in place uses the built-in defaults silently.
 
 ```bash
 hive config show                                 # print the current effective configuration
 hive config set <key> <value>                    # set one key, persist
 hive config reset <key>                          # restore one key to its default
-hive config edit                                 # open the file in $EDITOR with validation
+hive config edit                                 # open the YAML file in $EDITOR with validation
+hive config presets                              # list built-in template presets
+hive config preset <key> <name>                  # print one preset to stdout
+
+hive config template new <name>                  # create ~/.hive/templates/<name>.tmpl, open in $EDITOR
+hive config template edit <name>                 # open ~/.hive/templates/<name>.tmpl in $EDITOR
+hive config template list                        # list templates in ~/.hive/templates/
 ```
 
 Common settings:
@@ -81,20 +87,69 @@ hive config set history.retention_days 14        # days to keep history (0 disab
 
 ### Status format templates
 
-`status.human_format` and `status.tmux_format` are Go [`text/template`](https://pkg.go.dev/text/template) strings rendered against the queue. The default human format produces ANSI-bold/dim output when `hive status` is connected to a terminal; pipes and redirects automatically receive plain text.
+`status.human_format` and `status.tmux_format` are stored in YAML as **bare names**:
 
-For the common cases, use a built-in **preset** instead of writing your own template — prefix the value with `@`:
-
-```bash
-hive config set status.human_format @compact     # one-line summary
-hive config set status.human_format @verbose     # multi-line with pane info
-hive config set status.human_format @default     # back to the shipped default
-hive config set status.tmux_format  @minimal     # tighter status-bar output
+```yaml
+status:
+    human_format: default      # built-in preset
+    tmux_format:  minimal      # built-in preset
+    human_format: example      # custom template at ~/.hive/templates/example.tmpl
 ```
 
-`hive config set status.human_format @bogus` will fail and list the available preset names.
+The resolver checks the preset library for the key first, then `~/.hive/templates/<name>.tmpl`. Preset names (`default`, `compact`, `verbose`, `minimal`) are reserved — `template new compact` is rejected so a custom file can never silently shadow a preset.
 
-If you want to write your own, available template fields are:
+```bash
+hive config set status.human_format compact     # use the built-in compact preset
+hive config set status.tmux_format  minimal     # use the built-in tmux minimal
+hive config set status.human_format example     # use ~/.hive/templates/example.tmpl
+```
+
+Set fails fast on names that don't resolve to anything (preset or file). The YAML stays a single bare word.
+
+### Authoring a custom template
+
+Templates are `.tmpl` files in `~/.hive/templates/`, named whatever you like (as long as the name isn't a reserved preset). They're decoupled from configuration — creating a template doesn't auto-wire it; pointing a config key at it is a separate step.
+
+```bash
+# 1. Create a new template, open it in $EDITOR. Validates on save.
+hive config template new example
+
+# 2. Point a config key at it (bare name).
+hive config set status.human_format example
+# or run `hive config edit` and edit the value manually.
+```
+
+To start from an existing template instead of an empty file:
+
+```bash
+hive config template new mine --from compact
+# Seeds with the content of the 'compact' preset.
+
+hive config template new other-mine --from example
+# Seeds from another custom template.
+```
+
+To re-open a template later:
+
+```bash
+hive config template edit example
+```
+
+To list what you have:
+
+```bash
+hive config template list
+```
+
+`new` errors if a file by that name already exists OR if the name is a reserved preset; `edit` errors if it doesn't exist. Neither modifies the YAML — that's the job of `hive config set` or `hive config edit`.
+
+Edits to a `.tmpl` file take effect on the next `hive status` invocation. The YAML stores just the bare name.
+
+The underlying primitives are `hive config preset` (print a built-in to stdout) and `hive config set` (point a key at a name) — useful if you want to script the workflow.
+
+The default human format produces ANSI-bold/dim output when `hive status` is connected to a terminal; pipes and redirects automatically receive plain text.
+
+Templates are Go [`text/template`](https://pkg.go.dev/text/template) strings. Available fields:
 
 | Field | Type | Description |
 |---|---|---|

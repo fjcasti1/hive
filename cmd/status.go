@@ -56,13 +56,21 @@ func runStatus(database *sql.DB, cfg *config.Config, format string) error {
 	}
 	switch format {
 	case "human":
-		if err := execTemplate(os.Stdout, cfg.Status.HumanFormat, data); err != nil {
+		tmpl, err := config.ResolveTemplate("status.human_format", cfg.Status.HumanFormat)
+		if err != nil {
+			return err
+		}
+		if err := execTemplate(os.Stdout, tmpl, data); err != nil {
 			return err
 		}
 		fmt.Println()
 		return nil
 	case "tmux":
-		return execTemplate(os.Stdout, cfg.Status.TmuxFormat, data)
+		tmpl, err := config.ResolveTemplate("status.tmux_format", cfg.Status.TmuxFormat)
+		if err != nil {
+			return err
+		}
+		return execTemplate(os.Stdout, tmpl, data)
 	case "json":
 		return json.NewEncoder(os.Stdout).Encode(data)
 	default:

@@ -258,12 +258,13 @@ func TestReset_IntField(t *testing.T) {
 
 func TestReset_StringField(t *testing.T) {
 	cfg := defaultConfig()
+	original := cfg.Status.HumanFormat
 	cfg.Status.HumanFormat = "custom"
 	if err := Reset(cfg, "status.human_format"); err != nil {
 		t.Fatalf("Reset: %v", err)
 	}
-	if cfg.Status.HumanFormat != defaultHumanFormat {
-		t.Error("expected HumanFormat to revert to default")
+	if cfg.Status.HumanFormat != original {
+		t.Errorf("HumanFormat = %q, want %q (default)", cfg.Status.HumanFormat, original)
 	}
 }
 
@@ -274,49 +275,102 @@ func TestReset_UnknownKey(t *testing.T) {
 	}
 }
 
-func TestSet_PresetResolves(t *testing.T) {
+func TestSet_StoresPresetReferenceAsIs(t *testing.T) {
 	cfg := defaultConfig()
-	if err := Set(cfg, "status.human_format", "@compact"); err != nil {
-		t.Fatalf("Set with preset: %v", err)
+	if err := Set(cfg, "status.human_format", "compact"); err != nil {
+		t.Fatalf("Set with preset name: %v", err)
 	}
-	if cfg.Status.HumanFormat == defaultHumanFormat {
-		t.Error("expected HumanFormat to change to compact preset")
-	}
-	if cfg.Status.HumanFormat != statusHumanPresets["compact"] {
-		t.Error("HumanFormat does not match compact preset")
+	if cfg.Status.HumanFormat != "compact" {
+		t.Errorf("HumanFormat = %q, want %q", cfg.Status.HumanFormat, "compact")
 	}
 }
 
-func TestSet_UnknownPreset(t *testing.T) {
+func TestSet_UnknownNameCaughtByValidate(t *testing.T) {
 	cfg := defaultConfig()
-	err := Set(cfg, "status.human_format", "@nonexistent")
-	if err == nil {
-		t.Error("expected Set with unknown preset to error, got nil")
+	// Set itself doesn't resolve template names — it just stores the value.
+	if err := Set(cfg, "status.human_format", "nonexistent"); err != nil {
+		t.Errorf("Set should accept unknown template name (validate catches it later): %v", err)
+	}
+	// validate runs ResolveTemplate which reports the error.
+	if err := validate(cfg); err == nil {
+		t.Error("expected validate to reject unknown template name, got nil")
 	}
 }
 
-func TestSet_PresetOnNonStringField(t *testing.T) {
-	// Bool fields should NOT interpret @-prefixed values as presets.
+func TestResolveTemplate_PresetName(t *testing.T) {
+	got, err := ResolveTemplate("status.human_format", "compact")
+	if err != nil {
+		t.Fatalf("ResolveTemplate: %v", err)
+	}
+	if got != statusHumanPresets["compact"] {
+		t.Error("ResolveTemplate did not return the compact preset content")
+	}
+}
+
+func TestResolveTemplate_KeyScopedPresets(t *testing.T) {
+	// "minimal" is a tmux preset only — must NOT resolve under human_format.
+	if _, err := ResolveTemplate("status.human_format", "minimal"); err == nil {
+		t.Error("expected ResolveTemplate to reject 'minimal' for human_format (it's only a tmux preset)")
+	}
+	// And it MUST resolve under tmux_format.
+	if _, err := ResolveTemplate("status.tmux_format", "minimal"); err != nil {
+		t.Errorf("ResolveTemplate failed for tmux_format/minimal: %v", err)
+	}
+}
+
+func TestResolveTemplate_CustomTemplateFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir := filepath.Join(os.Getenv("HOME"), ".hive", "templates")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	contents := "hello {{ .Next.Session }}"
+	if err := os.WriteFile(filepath.Join(dir, "mine.tmpl"), []byte(contents), 0o644); err != nil {
+		t.Fatalf("write tmpl: %v", err)
+	}
+	got, err := ResolveTemplate("status.human_format", "mine")
+	if err != nil {
+		t.Fatalf("ResolveTemplate: %v", err)
+	}
+	if got != contents {
+		t.Errorf("ResolveTemplate returned %q, want %q", got, contents)
+	}
+}
+
+func TestResolveTemplate_MissingName(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if _, err := ResolveTemplate("status.human_format", "nonexistent"); err == nil {
+		t.Error("expected ResolveTemplate to error on unknown name, got nil")
+	}
+}
+
+func TestResolveTemplate_RejectsPathSeparator(t *testing.T) {
+	if _, err := ResolveTemplate("status.human_format", "/abs/path"); err == nil {
+		t.Error("expected ResolveTemplate to reject value with slash, got nil")
+	}
+}
+
+func TestSet_NameOnNonStringField(t *testing.T) {
+	// Bool fields parse the value as bool — a name like "compact" fails.
 	cfg := defaultConfig()
-	err := Set(cfg, "notifications.macos", "@compact")
+	err := Set(cfg, "notifications.macos", "compact")
 	if err == nil {
-		t.Error("expected Set @-value on bool field to error (parsing as bool), got nil")
+		t.Error("expected Set non-bool value on bool field to error, got nil")
 	}
 }
 
 func TestPresets_AllValidate(t *testing.T) {
-	// Every shipped preset must validate, since `Set` writes them straight
-	// into the config without calling validate again.
-	for name, tmpl := range statusHumanPresets {
+	// Every shipped preset must validate via its bare name.
+	for name := range statusHumanPresets {
 		cfg := defaultConfig()
-		cfg.Status.HumanFormat = tmpl
+		cfg.Status.HumanFormat = name
 		if err := validate(cfg); err != nil {
 			t.Errorf("status.human_format preset %q fails validation: %v", name, err)
 		}
 	}
-	for name, tmpl := range statusTmuxPresets {
+	for name := range statusTmuxPresets {
 		cfg := defaultConfig()
-		cfg.Status.TmuxFormat = tmpl
+		cfg.Status.TmuxFormat = name
 		if err := validate(cfg); err != nil {
 			t.Errorf("status.tmux_format preset %q fails validation: %v", name, err)
 		}
