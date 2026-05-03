@@ -26,7 +26,7 @@ const (
 		message,
 		created_at
 	FROM queue
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, id ASC
 `
 
 	queueDeleteSQL = `
@@ -34,7 +34,7 @@ const (
 	WHERE session = $1
 	RETURNING session, message, created_at
 `
-	queueGetNext = `
+	queuePeekSQL = `
 	SELECT
 		id,
 		session,
@@ -42,7 +42,7 @@ const (
 		message,
 		created_at
 	FROM queue
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, id ASC
 	LIMIT 1
 `
 )
@@ -57,7 +57,7 @@ type queueEntry struct {
 
 func (e queueEntry) Target() string {
 	if e.Pane != "" {
-		return fmt.Sprintf("%s.%s", e.Session, e.Pane)
+		return e.Pane
 	}
 	return e.Session
 }
@@ -70,19 +70,20 @@ func Enqueue(q Querier, session, message, pane string) error {
 	return nil
 }
 
-func Next(q Querier) (*queueEntry, error) {
-	entry := &queueEntry{}
-	err := q.QueryRow(queueGetNext).Scan(
-		&entry.ID,
-		&entry.Session,
-		&entry.Pane,
-		&entry.Message,
-		&entry.CreatedAt,
+func Peek(q Querier) (*queueEntry, error) {
+	var (
+		e         queueEntry
+		createdAt string
 	)
-	if err != nil {
-		return nil, fmt.Errorf("get next session: %w", err)
+	err := q.QueryRow(queuePeekSQL).Scan(&e.ID, &e.Session, &e.Pane, &e.Message, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
-	return entry, nil
+	if err != nil {
+		return nil, fmt.Errorf("peek: %w", err)
+	}
+	e.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	return &e, nil
 }
 
 func List(q Querier) ([]queueEntry, error) {
