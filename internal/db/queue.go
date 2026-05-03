@@ -34,6 +34,17 @@ const (
 	WHERE session = $1
 	RETURNING session, message, created_at
 `
+	queueGetNext = `
+	SELECT
+		id,
+		session,
+		pane,
+		message,
+		created_at
+	FROM queue
+	ORDER BY created_at ASC
+	LIMIT 1
+`
 )
 
 type queueEntry struct {
@@ -45,6 +56,9 @@ type queueEntry struct {
 }
 
 func (e queueEntry) Target() string {
+	if e.Pane != "" {
+		return fmt.Sprintf("%s.%s", e.Session, e.Pane)
+	}
 	return e.Session
 }
 
@@ -54,6 +68,21 @@ func Enqueue(q Querier, session, message, pane string) error {
 		return fmt.Errorf("enqueue session=%q: %w", session, err)
 	}
 	return nil
+}
+
+func Next(q Querier) (*queueEntry, error) {
+	entry := &queueEntry{}
+	err := q.QueryRow(queueGetNext).Scan(
+		&entry.ID,
+		&entry.Session,
+		&entry.Pane,
+		&entry.Message,
+		&entry.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get next session: %w", err)
+	}
+	return entry, nil
 }
 
 func List(q Querier) ([]queueEntry, error) {
