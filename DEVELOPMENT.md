@@ -102,7 +102,7 @@ cmd/
   ack.go              # `hive ack` subcommand
   list.go             # `hive list` subcommand
 internal/
-  config/             # config file (~/.hive/config/config.yaml)
+  config/             # config file (~/.hive/config.yaml)
   db/                 # SQLite queue + embedded migrations
   tmux/               # tmux session detection (`tmux.CurrentSession`)
 ```
@@ -126,8 +126,8 @@ At runtime hive keeps everything under `~/.hive/`:
 
 | File | Path |
 |------|------|
-| Config | `~/.hive/config/config.yaml` |
-| Database | `~/.hive/db/hive.db` |
+| Config | `~/.hive/config.yaml` |
+| Database | `~/.hive/hive.db` |
 
 Paths are computed from `$HOME` in `internal/config/config.go` and `internal/db/db.go`. Tests use in-memory SQLite via a test-local `openMem` helper so they never touch real disk.
 
@@ -166,10 +166,10 @@ Always fill in `Down`. It's what makes `goose down` and `goose redo` work during
 
 ### Working with the goose CLI
 
-Useful when iterating on a migration. All commands target the real DB at `~/.hive/db/hive.db`:
+Useful when iterating on a migration. All commands target the real DB at `~/.hive/hive.db`:
 
 ```bash
-alias gx='go run github.com/pressly/goose/v3/cmd/goose@latest -dir internal/db/migrations sqlite3 ~/.hive/db/hive.db'
+alias gx='go run github.com/pressly/goose/v3/cmd/goose@latest -dir internal/db/migrations sqlite3 ~/.hive/hive.db'
 
 gx status   # applied vs pending
 gx up       # apply all pending (also runs on hive startup)
@@ -195,7 +195,7 @@ For richer checks (e.g., that a new column has the expected default), extend tha
 If the local DB lands in a weird state — half-applied migration, manual edits, mystery — nuke it:
 
 ```bash
-rm ~/.hive/db/hive.db
+rm ~/.hive/hive.db
 ```
 
 The next `hive` run recreates it from migrations. Safe in dev: there's nothing in there but your own queue and history.

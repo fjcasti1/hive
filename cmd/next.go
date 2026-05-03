@@ -23,12 +23,12 @@ var nextCmd = &cobra.Command{
 			return nil
 		}
 
-		sessionName := entry.Session
 		if err := tmux.SwitchTo(entry.Target()); err != nil {
 			return err
 		}
 
 		if doAck {
+			sessionName := entry.Session
 			found, err := ackSession(database, sessionName)
 			if err != nil {
 				return fmt.Errorf("ack session=%q: %w", sessionName, err)

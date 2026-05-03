@@ -60,30 +60,18 @@ hive doctor    # verify everything is wired up
 
 ## Configuration
 
-Config lives at `~/.hive/config/config.yaml`. Use `hive config set` to edit:
+Config lives at `~/.hive/config.yaml`. Use `hive config set` to edit:
 
 ```bash
 hive config set notifications.macos false        # disable macOS popups
 hive config set notifications.tmux_bell false    # disable tmux bell
 hive config set queue.max_message_length 80      # truncate long messages
-hive config set status.format "{session} ({age}) | +{extra}"  # custom status bar
-hive config set list.watch_interval 3            # refresh rate for --watch
-hive config set history.retention_days 14        # how long to keep history
-hive config set snooze.default_duration 15m      # default snooze length
-hive config set pause.default_duration 2h        # default pause length (empty = indefinite)
+hive config set history.retention_days 14        # days to keep history (0 = no history kept)
 ```
 
-### Status bar tokens
+Run `hive config show` to print the current effective configuration.
 
-The `status.format` string supports these tokens:
-
-| Token | Value |
-|---|---|
-| `{session}` | Session name |
-| `{message}` | Agent's message (collapsed with separator when empty) |
-| `{age}` | How long the session has been waiting |
-| `{count}` | Total sessions in queue |
-| `{extra}` | Sessions beyond the first (collapsed when 0) |
+`history.retention_days` controls how long resolved sessions are retained. The purge runs on every `hive` invocation that opens the database, deleting entries with a `resolved_at` older than the cutoff. Setting `retention_days` to `0` makes the cutoff "now," so every invocation wipes the history table — effectively disabling history entirely.
 
 ## Claude Code integration
 

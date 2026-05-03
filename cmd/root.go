@@ -44,7 +44,10 @@ var (
 			if err != nil {
 				return err
 			}
-			// _ = db.PurgeHistory(database, cfg.History.RetentionDays)
+			err = db.PurgeHistory(database, cfg.History.RetentionDays)
+			if err != nil {
+				return err
+			}
 			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -63,11 +66,11 @@ func init() {
 		ackCmd,
 		historyCmd,
 		nextCmd,
+		configCmd,
 	// 	snoozeCmd,
 	// 	pauseCmd,
 	// 	resumeCmd,
 	// 	statusCmd,
-	// 	configCmd,
 	// 	installCmd,
 	// 	doctorCmd,
 	)
