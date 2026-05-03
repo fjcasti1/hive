@@ -40,8 +40,8 @@ func TestMigrateUp(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read goose version: %v", err)
 	}
-	if version != 2 {
-		t.Errorf("want schema version 2, got %d", version)
+	if version != 3 {
+		t.Errorf("want schema version 3, got %d", version)
 	}
 
 	// Idempotency: running migrate again should be a no-op.
