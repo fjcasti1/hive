@@ -44,10 +44,17 @@ func ConfigPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".hive", "config.yaml")
 }
 
+// Load reads ~/.hive/config.yaml and returns a Config populated by overlaying
+// the file's contents on top of DefaultConfig. If the file does not exist,
+// Load writes the defaults to disk before returning, so subsequent invocations
+// (and the user) can find and edit the file.
 func Load() (Config, error) {
 	cfg := DefaultConfig()
 	data, err := os.ReadFile(ConfigPath())
 	if os.IsNotExist(err) {
+		if saveErr := Save(cfg); saveErr != nil {
+			return cfg, fmt.Errorf("write default config: %w", saveErr)
+		}
 		return cfg, nil
 	}
 	if err != nil {

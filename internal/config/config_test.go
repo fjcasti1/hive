@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestLoadMissingFile(t *testing.T) {
+func TestLoadMissingFileWritesDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg, err := Load()
 	if err != nil {
@@ -26,6 +27,11 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 	if cfg.Queue.MaxMessageLength != 100 {
 		t.Errorf("expected defaults when config file is absent, got %+v", cfg)
+	}
+	// Load should have materialized the defaults to disk so the user can find
+	// and edit the file.
+	if _, err := os.Stat(ConfigPath()); err != nil {
+		t.Errorf("expected Load to create %s, got stat error: %v", ConfigPath(), err)
 	}
 }
 
