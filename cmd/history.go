@@ -22,13 +22,13 @@ var historyCmd = &cobra.Command{
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "  session\tmessage\tresolved")
+		fmt.Fprintln(w, "  session\tmessage\tnotified\tresolved")
 		for _, e := range entries {
 			msg := e.Message
 			if msg == "" {
 				msg = "-"
 			}
-			fmt.Fprintf(w, "  %s\t%s\t%s\n", e.Session, msg, timeAgo(e.ResolvedAt))
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", e.Session, msg, timeAgo(e.NotifiedAt), timeAgo(e.ResolvedAt))
 		}
 		return w.Flush()
 	},

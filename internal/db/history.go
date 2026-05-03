@@ -20,7 +20,7 @@ const (
 `
 	historyAddSQL = `
 	INSERT INTO history (session, message, notified_at)
-	VALUES ($1, $2, $3)
+	VALUES ($1, $2, strftime('%Y-%m-%d %H:%M:%S', $3))
 `
 )
 
@@ -49,15 +49,15 @@ func ListHistory(q Querier) ([]HistoryEntry, error) {
 		if err := rows.Scan(&e.ID, &e.Session, &e.Message, &notifiedAt, &resolvedAt); err != nil {
 			return nil, err
 		}
-		e.NotifiedAt, _ = time.Parse(sqliteTimeLayout, notifiedAt)
-		e.ResolvedAt, _ = time.Parse(sqliteTimeLayout, resolvedAt)
+		e.NotifiedAt, _ = time.Parse(time.RFC3339, notifiedAt)
+		e.ResolvedAt, _ = time.Parse(time.RFC3339, resolvedAt)
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
 }
 
 func AddHistory(q Querier, session, message string, notifiedAt time.Time) error {
-	_, err := q.Exec(historyAddSQL, session, message, notifiedAt.UTC().Format(sqliteTimeLayout))
+	_, err := q.Exec(historyAddSQL, session, message, notifiedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("add history session=%q: %w", session, err)
 	}

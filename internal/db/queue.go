@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	sqliteTimeLayout = "2006-01-02T15:04:05Z"
-
 	queueAddSQL = `
 	INSERT INTO queue (session, message, pane)
 	VALUES ($1, $2, $3)
@@ -74,7 +72,7 @@ func List(q Querier) ([]queueEntry, error) {
 		if err := rows.Scan(&e.ID, &e.Session, &e.Pane, &e.Message, &createdAt); err != nil {
 			return nil, err
 		}
-		e.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+		e.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
@@ -98,6 +96,6 @@ func Delete(q Querier, session string) (*deletedQueueEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("delete session=%q: %w", session, err)
 	}
-	e.NotifiedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+	e.NotifiedAt, _ = time.Parse(time.RFC3339, createdAt)
 	return &e, nil
 }
