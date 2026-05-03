@@ -49,3 +49,118 @@ func TestMigrateUp(t *testing.T) {
 		t.Fatalf("re-run migrate: %v", err)
 	}
 }
+
+func TestPeekEmpty(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	entry, err := Peek(database)
+	if err != nil {
+		t.Fatalf("Peek: %v", err)
+	}
+	if entry != nil {
+		t.Errorf("expected nil entry on empty queue, got %+v", entry)
+	}
+}
+
+func TestPeekSingleEntry(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	if err := Enqueue(database, "alpha", "msg-a", "%1"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	entry, err := Peek(database)
+	if err != nil {
+		t.Fatalf("Peek: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected entry, got nil")
+	}
+	if got, want := entry.Session, "alpha"; got != want {
+		t.Errorf("Session = %q, want %q", got, want)
+	}
+	if got, want := entry.Message, "msg-a"; got != want {
+		t.Errorf("Message = %q, want %q", got, want)
+	}
+	if got, want := entry.Pane, "%1"; got != want {
+		t.Errorf("Pane = %q, want %q", got, want)
+	}
+}
+
+func TestPeekTiebreaksOnID(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	// Two rows with the SAME created_at — only the id distinguishes them.
+	// Without an id tiebreaker the ordering would be non-deterministic.
+	const sameTime = "2026-01-01 10:00:00"
+	if _, err := database.Exec(
+		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
+		"alpha", "first", "%1", sameTime,
+	); err != nil {
+		t.Fatalf("insert alpha: %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
+		"beta", "second", "%2", sameTime,
+	); err != nil {
+		t.Fatalf("insert beta: %v", err)
+	}
+
+	entry, err := Peek(database)
+	if err != nil {
+		t.Fatalf("Peek: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected entry, got nil")
+	}
+	if got, want := entry.Session, "alpha"; got != want {
+		t.Errorf("Session = %q, want %q (lower id wins on tie)", got, want)
+	}
+}
+
+func TestPeekReturnsOldest(t *testing.T) {
+	database, err := openMem()
+	if err != nil {
+		t.Fatalf("openMem: %v", err)
+	}
+	defer database.Close()
+
+	// Insert directly so we can control created_at and avoid SQLite's
+	// second-precision CURRENT_TIMESTAMP, which would race two consecutive
+	// Enqueue calls.
+	if _, err := database.Exec(
+		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
+		"alpha", "first", "%1", "2026-01-01 10:00:00",
+	); err != nil {
+		t.Fatalf("insert alpha: %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
+		"beta", "second", "%2", "2026-01-01 10:00:01",
+	); err != nil {
+		t.Fatalf("insert beta: %v", err)
+	}
+
+	entry, err := Peek(database)
+	if err != nil {
+		t.Fatalf("Peek: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected entry, got nil")
+	}
+	if got, want := entry.Session, "alpha"; got != want {
+		t.Errorf("Session = %q, want %q (oldest first)", got, want)
+	}
+}

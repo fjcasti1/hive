@@ -26,13 +26,24 @@ const (
 		message,
 		created_at
 	FROM queue
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, id ASC
 `
 
 	queueDeleteSQL = `
 	DELETE FROM queue
 	WHERE session = $1
 	RETURNING session, message, created_at
+`
+	queuePeekSQL = `
+	SELECT
+		id,
+		session,
+		pane,
+		message,
+		created_at
+	FROM queue
+	ORDER BY created_at ASC, id ASC
+	LIMIT 1
 `
 )
 
@@ -45,6 +56,9 @@ type queueEntry struct {
 }
 
 func (e queueEntry) Target() string {
+	if e.Pane != "" {
+		return e.Pane
+	}
 	return e.Session
 }
 
@@ -54,6 +68,22 @@ func Enqueue(q Querier, session, message, pane string) error {
 		return fmt.Errorf("enqueue session=%q: %w", session, err)
 	}
 	return nil
+}
+
+func Peek(q Querier) (*queueEntry, error) {
+	var (
+		e         queueEntry
+		createdAt string
+	)
+	err := q.QueryRow(queuePeekSQL).Scan(&e.ID, &e.Session, &e.Pane, &e.Message, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("peek: %w", err)
+	}
+	e.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	return &e, nil
 }
 
 func List(q Querier) ([]queueEntry, error) {
