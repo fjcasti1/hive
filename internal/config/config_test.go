@@ -19,7 +19,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestLoadMissingFileWritesDefaults(t *testing.T) {
+func TestLoadMissingFileReturnsDefaultsWithoutWriting(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg, err := Load()
 	if err != nil {
@@ -28,10 +28,11 @@ func TestLoadMissingFileWritesDefaults(t *testing.T) {
 	if cfg.Queue.MaxMessageLength != 100 {
 		t.Errorf("expected defaults when config file is absent, got %+v", cfg)
 	}
-	// Load should have materialized the defaults to disk so the user can find
-	// and edit the file.
-	if _, err := os.Stat(configPath()); err != nil {
-		t.Errorf("expected Load to create %s, got stat error: %v", configPath(), err)
+	// Load must NOT create the file. Auto-creating it leads to staleness when
+	// new fields are added in future versions — old files would shadow new
+	// defaults. The file appears only when the user explicitly customizes.
+	if _, err := os.Stat(ConfigPath()); !os.IsNotExist(err) {
+		t.Errorf("expected Load to leave %s missing, got stat err: %v", ConfigPath(), err)
 	}
 }
 
@@ -67,11 +68,11 @@ func TestSaveAndLoad(t *testing.T) {
 func TestLoadPartialFileKeepsDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if err := os.MkdirAll(filepath.Dir(configPath()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	partial := []byte("queue:\n    max_message_length: 50\n")
-	if err := os.WriteFile(configPath(), partial, 0o644); err != nil {
+	if err := os.WriteFile(ConfigPath(), partial, 0o644); err != nil {
 		t.Fatalf("write partial config: %v", err)
 	}
 
@@ -95,7 +96,7 @@ func TestLoadPartialFileKeepsDefaults(t *testing.T) {
 
 func TestConfigPath(t *testing.T) {
 	t.Setenv("HOME", "/test/home")
-	got := configPath()
+	got := ConfigPath()
 	want := filepath.Join("/test/home", ".hive", "config.yaml")
 	if got != want {
 		t.Errorf("ConfigPath = %q, want %q", got, want)
@@ -190,15 +191,38 @@ func TestSaveRejectsInvalidConfig(t *testing.T) {
 
 func TestLoadRejectsInvalidFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if err := os.MkdirAll(filepath.Dir(configPath()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	bad := []byte("history:\n    retention_days: -3\n")
-	if err := os.WriteFile(configPath(), bad, 0o644); err != nil {
+	if err := os.WriteFile(ConfigPath(), bad, 0o644); err != nil {
 		t.Fatalf("write bad config: %v", err)
 	}
 	if _, err := Load(); err == nil {
 		t.Error("expected Load to reject invalid file, got nil")
+	}
+}
+
+func TestValidate_BadHumanTemplate(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Status.HumanFormat = `{{ .BadTemplate`
+	if err := validate(cfg); err == nil {
+		t.Error("expected validate to reject malformed human_format template, got nil")
+	}
+}
+
+func TestValidate_BadTmuxTemplate(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Status.TmuxFormat = `{{ if .Next`
+	if err := validate(cfg); err == nil {
+		t.Error("expected validate to reject malformed tmux_format template, got nil")
+	}
+}
+
+func TestValidate_DefaultTemplatesPass(t *testing.T) {
+	// Defensive: the defaults shipped in defaultConfig must parse cleanly.
+	if err := validate(defaultConfig()); err != nil {
+		t.Errorf("default templates should validate, got: %v", err)
 	}
 }
 
@@ -207,5 +231,94 @@ func TestSetNonLeafKey(t *testing.T) {
 	err := Set(cfg, "notifications", "true")
 	if err == nil {
 		t.Fatal("expected error when assigning to a non-leaf key, got nil")
+	}
+}
+
+func TestReset_BoolField(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Notifications.Macos = false
+	if err := Reset(cfg, "notifications.macos"); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if !cfg.Notifications.Macos {
+		t.Error("expected Macos=true (default) after Reset")
+	}
+}
+
+func TestReset_IntField(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Queue.MaxMessageLength = 50
+	if err := Reset(cfg, "queue.max_message_length"); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if got, want := cfg.Queue.MaxMessageLength, 100; got != want {
+		t.Errorf("MaxMessageLength = %d, want %d (default)", got, want)
+	}
+}
+
+func TestReset_StringField(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Status.HumanFormat = "custom"
+	if err := Reset(cfg, "status.human_format"); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if cfg.Status.HumanFormat != defaultHumanFormat {
+		t.Error("expected HumanFormat to revert to default")
+	}
+}
+
+func TestReset_UnknownKey(t *testing.T) {
+	cfg := defaultConfig()
+	if err := Reset(cfg, "foo.bar"); err == nil {
+		t.Error("expected Reset to reject unknown key, got nil")
+	}
+}
+
+func TestSet_PresetResolves(t *testing.T) {
+	cfg := defaultConfig()
+	if err := Set(cfg, "status.human_format", "@compact"); err != nil {
+		t.Fatalf("Set with preset: %v", err)
+	}
+	if cfg.Status.HumanFormat == defaultHumanFormat {
+		t.Error("expected HumanFormat to change to compact preset")
+	}
+	if cfg.Status.HumanFormat != statusHumanPresets["compact"] {
+		t.Error("HumanFormat does not match compact preset")
+	}
+}
+
+func TestSet_UnknownPreset(t *testing.T) {
+	cfg := defaultConfig()
+	err := Set(cfg, "status.human_format", "@nonexistent")
+	if err == nil {
+		t.Error("expected Set with unknown preset to error, got nil")
+	}
+}
+
+func TestSet_PresetOnNonStringField(t *testing.T) {
+	// Bool fields should NOT interpret @-prefixed values as presets.
+	cfg := defaultConfig()
+	err := Set(cfg, "notifications.macos", "@compact")
+	if err == nil {
+		t.Error("expected Set @-value on bool field to error (parsing as bool), got nil")
+	}
+}
+
+func TestPresets_AllValidate(t *testing.T) {
+	// Every shipped preset must validate, since `Set` writes them straight
+	// into the config without calling validate again.
+	for name, tmpl := range statusHumanPresets {
+		cfg := defaultConfig()
+		cfg.Status.HumanFormat = tmpl
+		if err := validate(cfg); err != nil {
+			t.Errorf("status.human_format preset %q fails validation: %v", name, err)
+		}
+	}
+	for name, tmpl := range statusTmuxPresets {
+		cfg := defaultConfig()
+		cfg.Status.TmuxFormat = tmpl
+		if err := validate(cfg); err != nil {
+			t.Errorf("status.tmux_format preset %q fails validation: %v", name, err)
+		}
 	}
 }

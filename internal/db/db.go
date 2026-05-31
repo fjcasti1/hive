@@ -40,6 +40,11 @@ func DBPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".hive", "hive.db")
 }
 
+// Open opens a connection to the SQLite database, creating it and its parent directories if needed.
+// It also runs any pending migrations before returning the database connection.
+// It should only be called once per process, and callers should defer Close() on the returned *sql.DB.
+// DO NOT call Open() for individual commands, only the root command should call Open() in its
+// PersistentPreRunE, and the resulting *sql.DB should be shared with subcommands via closure or context.
 func Open() (*sql.DB, error) {
 	path := DBPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
