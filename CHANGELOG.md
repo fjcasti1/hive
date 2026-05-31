@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.0](https://github.com/fjcasti1/hive/compare/v1.4.0...v1.5.0) (2026-05-03)
+
+
+### 🎁 New Features
+
+* activate history purge with configuration field ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+* **config:** add `hive config` commands: `set` & `show` ([#32](https://github.com/fjcasti1/hive/issues/32)) ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+
+
+### 🐛 Bug Fixes
+
+* write default configuration to file on first execution ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+
+
+### 📚 Documentation
+
+* Update development and readme guide ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+
+
+### 💫 Code Refactoring
+
+* Change `Config` to a pointer type ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+* Flatten config and db paths ([298a59a](https://github.com/fjcasti1/hive/commit/298a59a5ff54f5af8e394802ccb6d9ffaf2afd9b))
+
 ## [1.4.0](https://github.com/fjcasti1/hive/compare/v1.3.0...v1.4.0) (2026-05-03)
 
 
