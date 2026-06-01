@@ -57,7 +57,7 @@ func TestPeekEmpty(t *testing.T) {
 	}
 	defer database.Close()
 
-	entry, err := Peek(database)
+	entry, err := Show(database)
 	if err != nil {
 		t.Fatalf("Peek: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestPeekSingleEntry(t *testing.T) {
 		t.Fatalf("Enqueue: %v", err)
 	}
 
-	entry, err := Peek(database)
+	entry, err := Show(database)
 	if err != nil {
 		t.Fatalf("Peek: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestPeekTiebreaksOnID(t *testing.T) {
 		t.Fatalf("insert beta: %v", err)
 	}
 
-	entry, err := Peek(database)
+	entry, err := Show(database)
 	if err != nil {
 		t.Fatalf("Peek: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestPeekReturnsOldest(t *testing.T) {
 		t.Fatalf("insert beta: %v", err)
 	}
 
-	entry, err := Peek(database)
+	entry, err := Show(database)
 	if err != nil {
 		t.Fatalf("Peek: %v", err)
 	}

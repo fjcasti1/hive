@@ -43,8 +43,7 @@ hive doctor    # verify everything is wired up
 |---|---|
 | `hive notify [-m "message"]` | Add current session to queue and send notifications |
 | `hive ack [session-or-index]` | Acknowledge — mark feedback given, move to history |
-| `hive next` | Switch to the next waiting session (FIFO) |
-| `hive peek` | Show next waiting session without switching |
+| `hive next` | Switch to the next waiting session (FIFO); `--show` prints it without switching, `--ack` acknowledges after switching |
 | `hive status` | Show queue state (default human; `--format=tmux` or `--format=json` available) |
 | `hive list` | _Deprecated — use `hive status`_ |
 | `hive snooze [session] [duration]` | Hide a session for a while (e.g. `10m`, `1h`) |
