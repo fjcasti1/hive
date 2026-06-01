@@ -18,6 +18,10 @@ import (
 type Notifications struct {
 	Macos    bool `yaml:"macos"`
 	TmuxBell bool `yaml:"tmux_bell"`
+	// SlackWebhook is a Slack incoming-webhook URL. When set, hive posts each
+	// notification to it; the Slack mobile app then delivers phone alerts. Empty
+	// disables the channel.
+	SlackWebhook string `yaml:"slack_webhook"`
 }
 
 type Queue struct {
@@ -236,6 +240,9 @@ func validate(cfg *Config) error {
 	}
 	if cfg.History.RetentionDays < 0 {
 		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
+	}
+	if w := cfg.Notifications.SlackWebhook; w != "" && !strings.HasPrefix(w, "https://") && !strings.HasPrefix(w, "http://") {
+		return fmt.Errorf("notifications.slack_webhook must be an http(s) URL, got %q", w)
 	}
 	if _, err := template.New("status.human_format").Funcs(TemplateFuncs()).Parse(cfg.Status.HumanFormat); err != nil {
 		return fmt.Errorf("status.human_format: %w", err)

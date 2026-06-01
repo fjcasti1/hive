@@ -20,6 +20,9 @@ func Channels(cfg *config.Config) []Channel {
 	if cfg.Notifications.TmuxBell {
 		chs = append(chs, NewTmuxChannel())
 	}
+	if cfg.Notifications.SlackWebhook != "" {
+		chs = append(chs, NewSlackChannel(cfg.Notifications.SlackWebhook))
+	}
 	return chs
 }
 

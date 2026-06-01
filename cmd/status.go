@@ -83,9 +83,9 @@ func buildStatusData(database *sql.DB) (*statusData, error) {
 	}
 	for _, e := range entries {
 		data.Queue = append(data.Queue, statusEntry{
-			Session:    e.Session,
+			Session:    e.Label,
 			Message:    e.Message,
-			Pane:       e.Pane,
+			Pane:       e.Target(),
 			Age:        timeAgo(e.CreatedAt),
 			NotifiedAt: e.CreatedAt,
 		})

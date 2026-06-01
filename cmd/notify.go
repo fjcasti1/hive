@@ -2,36 +2,36 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/fjcasti1/hive/internal/db"
 	"github.com/fjcasti1/hive/internal/notifications"
-	"github.com/fjcasti1/hive/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
 var notifyCmd = &cobra.Command{
 	Use:   "notify",
-	Short: "Add current session to the waiting queue and fire notifications",
+	Short: "Add the current agent to the waiting queue and fire notifications",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		msg, _ := cmd.Flags().GetString("message")
-		sessionName, _ := cmd.Flags().GetString("session")
+		idFlag, _ := cmd.Flags().GetString("id")
+		labelFlag, _ := cmd.Flags().GetString("session")
 
-		if sessionName == "" {
-			var err error
-			sessionName, err = tmux.CurrentSession()
-			if err != nil {
-				return err
-			}
+		hook := readHookInput()
+		agent, err := resolveAgent(idFlag, labelFlag, hook)
+		if err != nil {
+			return err
 		}
 
+		// A Claude Notification hook carries its own message; use it when one
+		// wasn't passed explicitly.
+		if msg == "" && hook != nil {
+			msg = hook.Message
+		}
 		if len(msg) > cfg.Queue.MaxMessageLength {
 			msg = msg[:cfg.Queue.MaxMessageLength]
 		}
 
-		// Enqueue the session and message in the database.
-		pane := os.Getenv("TMUX_PANE")
-		if err := db.Enqueue(database, sessionName, msg, pane); err != nil {
+		if err := db.Enqueue(database, agent.ID, agent.Label, agent.Locator, msg); err != nil {
 			return fmt.Errorf("queue error: %w", err)
 		}
 
@@ -39,7 +39,7 @@ var notifyCmd = &cobra.Command{
 		// feedback even if they don't have a tmux status line set up to show
 		// the queue length.
 		channels := notifications.Channels(cfg)
-		notifications.Dispatch(channels, sessionName, msg)
+		notifications.Dispatch(channels, agent.Label, msg)
 
 		return nil
 	},
@@ -47,5 +47,6 @@ var notifyCmd = &cobra.Command{
 
 func init() {
 	notifyCmd.Flags().StringP("message", "m", "", "Why the agent needs attention (max 100 chars)")
-	notifyCmd.Flags().StringP("session", "s", "", "tmux session name (auto-detected if omitted)")
+	notifyCmd.Flags().StringP("session", "s", "", "Display label for the agent (auto-detected from tmux if omitted)")
+	notifyCmd.Flags().String("id", "", "Stable agent id (auto-detected from the Claude hook or tmux if omitted)")
 }
