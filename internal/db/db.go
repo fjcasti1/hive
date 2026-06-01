@@ -1,4 +1,10 @@
+// Package db is the SQLite persistence layer for hive. It manages the queue of
+// pending session messages and the history of resolved notifications, applying
+// any pending schema migrations when the database is opened.
 package db
+
+// db.go holds the database lifecycle: opening the connection, running schema
+// migrations, and the transaction/Querier primitives shared across the package.
 
 import (
 	"database/sql"
@@ -36,6 +42,8 @@ func WithTx(database *sql.DB, fn func(*sql.Tx) error) error {
 	return tx.Commit()
 }
 
+// DBPath returns the filesystem path to the SQLite database, located at
+// ~/.hive/hive.db.
 func DBPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".hive", "hive.db")
 }

@@ -1,5 +1,8 @@
 package db
 
+// history.go holds the resolved-notification history: listing past entries,
+// recording new ones, and purging entries past the retention window.
+
 import (
 	"fmt"
 	"time"
@@ -28,6 +31,8 @@ const (
 `
 )
 
+// HistoryEntry is a record of a notification that has been resolved, capturing
+// when it was originally delivered and when it was cleared from the queue.
 type HistoryEntry struct {
 	ID         int64
 	Session    string
@@ -36,6 +41,8 @@ type HistoryEntry struct {
 	ResolvedAt time.Time
 }
 
+// ListHistory returns all history entries, ordered by resolution time with the
+// most recently resolved first.
 func ListHistory(q Querier) ([]HistoryEntry, error) {
 	rows, err := q.Query(historyListSQL)
 	if err != nil {
@@ -60,6 +67,8 @@ func ListHistory(q Querier) ([]HistoryEntry, error) {
 	return entries, rows.Err()
 }
 
+// AddHistory inserts a history record for the given session, storing notifiedAt
+// as the time the notification was originally delivered.
 func AddHistory(q Querier, session, message string, notifiedAt time.Time) error {
 	_, err := q.Exec(historyAddSQL, session, message, notifiedAt.UTC().Format(time.RFC3339))
 	if err != nil {
@@ -68,6 +77,8 @@ func AddHistory(q Querier, session, message string, notifiedAt time.Time) error 
 	return nil
 }
 
+// PurgeHistory deletes history entries that were resolved more than
+// retentionDays ago.
 func PurgeHistory(q Querier, retentionDays int) error {
 	_, err := q.Exec(
 		historyPurgeSQL,
