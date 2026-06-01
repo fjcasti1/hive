@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -86,29 +89,69 @@ func ConfigPath() string {
 }
 
 // Load reads ~/.hive/config.yaml and returns a Config populated by overlaying
-// the file's contents on top of defaults. If the file does not exist, Load
-// returns in-memory defaults without writing the file — the file appears
-// only when the user explicitly customizes via `hive config set`,
-// `hive config edit`, or `hive config reset`. This avoids the staleness
-// trap of an auto-written file shadowing new defaults in future versions.
+// the file's contents on top of defaults. On first run, when the file does not
+// exist, Load creates it with a full snapshot of the defaults so the user
+// always has a discoverable, editable file containing every key with its value.
+//
+// Trade-off: a written-out default is pinned, so a default changed in a future
+// hive version won't reach a file that already exists. A schema_version +
+// migration mechanism is planned to address this (see TODO.txt).
 func Load() (*Config, error) {
 	cfg := defaultConfig()
 	data, err := os.ReadFile(ConfigPath())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			if err := createDefaultFile(); err != nil {
+				return nil, err
+			}
+			data, err = os.ReadFile(ConfigPath())
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
-	// Unmarshal into the defaults-populated struct so keys absent from the
-	// YAML keep their default values (partial config files are valid).
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	// Decode into the defaults-populated struct so keys absent from the YAML
+	// keep their default values (partial config files are valid). KnownFields
+	// makes any key that isn't part of the schema a hard error rather than a
+	// silent no-op, so typos like "max_mesage_length" surface instead of being
+	// dropped and leaving the user on the default. An empty file decodes to
+	// io.EOF, which is not an error — it just means "all defaults".
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	if err := validate(cfg); err != nil {
 		return nil, fmt.Errorf("invalid config at %s: %w", ConfigPath(), err)
 	}
 	return cfg, nil
+}
+
+// createDefaultFile writes a full snapshot of the defaults to ConfigPath using
+// O_CREATE|O_EXCL, so a concurrent invocation racing to create the same file
+// cannot clobber one another process just wrote. An "already exists" error is
+// treated as success: the caller proceeds to read whatever is on disk.
+func createDefaultFile() error {
+	path := ConfigPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(defaultConfig())
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(data)
+	return err
 }
 
 func Save(cfg *Config) error {

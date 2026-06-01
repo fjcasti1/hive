@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestLoadMissingFileReturnsDefaultsWithoutWriting(t *testing.T) {
+func TestLoadCreatesFileWhenMissing(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg, err := Load()
 	if err != nil {
@@ -28,11 +29,49 @@ func TestLoadMissingFileReturnsDefaultsWithoutWriting(t *testing.T) {
 	if cfg.Queue.MaxMessageLength != 100 {
 		t.Errorf("expected defaults when config file is absent, got %+v", cfg)
 	}
-	// Load must NOT create the file. Auto-creating it leads to staleness when
-	// new fields are added in future versions — old files would shadow new
-	// defaults. The file appears only when the user explicitly customizes.
-	if _, err := os.Stat(ConfigPath()); !os.IsNotExist(err) {
-		t.Errorf("expected Load to leave %s missing, got stat err: %v", ConfigPath(), err)
+	// Load must create the file on first run so users always have a
+	// discoverable, editable config containing every key with its value.
+	if _, err := os.Stat(ConfigPath()); err != nil {
+		t.Fatalf("expected Load to create %s, got stat err: %v", ConfigPath(), err)
+	}
+	// The written file is a full snapshot of the defaults: every key present.
+	data, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		t.Fatalf("read created config: %v", err)
+	}
+	content := string(data)
+	for _, key := range []string{"macos", "tmux_bell", "max_message_length", "retention_days", "human_format", "tmux_format"} {
+		if !strings.Contains(content, key) {
+			t.Errorf("created config missing key %q; got:\n%s", key, content)
+		}
+	}
+}
+
+func TestLoadDoesNotClobberExistingFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// A user's hand-written partial config must survive a Load untouched —
+	// eager creation only fills in a missing file, it never overwrites one.
+	partial := []byte("queue:\n    max_message_length: 42\n")
+	if err := os.WriteFile(ConfigPath(), partial, 0o644); err != nil {
+		t.Fatalf("write partial config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, want := cfg.Queue.MaxMessageLength, 42; got != want {
+		t.Errorf("MaxMessageLength = %d, want %d (existing override preserved)", got, want)
+	}
+	data, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if string(data) != string(partial) {
+		t.Errorf("Load clobbered existing config.\nwant: %q\ngot:  %q", partial, data)
 	}
 }
 
@@ -200,6 +239,52 @@ func TestLoadRejectsInvalidFile(t *testing.T) {
 	}
 	if _, err := Load(); err == nil {
 		t.Error("expected Load to reject invalid file, got nil")
+	}
+}
+
+// TestLoadRejectsUnknownKeys locks in strict decoding: a key that isn't part
+// of the schema (junk, or — the real footgun — a typo of a real key) must be a
+// hard error, not silently ignored. Otherwise a user who writes
+// "max_mesage_length: 5" thinks they set the limit but silently gets the default.
+func TestLoadRejectsUnknownKeys(t *testing.T) {
+	cases := map[string]string{
+		"unknown top-level key": "caca: 2\n",
+		"unknown nested key":    "notifications:\n    macoss: false\n",
+		"typo of a real key":    "queue:\n    max_mesage_length: 5\n",
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(ConfigPath(), []byte(content), 0o644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			if _, err := Load(); err == nil {
+				t.Errorf("expected Load to reject unknown key, got nil")
+			}
+		})
+	}
+}
+
+// TestLoadAcceptsEmptyFile guards the empty-document case: an empty file is not
+// a schema violation, it just means "all defaults". Strict decoding must not
+// turn the resulting io.EOF into an error.
+func TestLoadAcceptsEmptyFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(ConfigPath(), []byte(""), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load on empty file: %v", err)
+	}
+	if got, want := cfg.Queue.MaxMessageLength, 100; got != want {
+		t.Errorf("empty file: MaxMessageLength = %d, want %d (default)", got, want)
 	}
 }
 
