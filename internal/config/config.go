@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -107,9 +110,15 @@ func Load() (*Config, error) {
 			return nil, err
 		}
 	}
-	// Unmarshal into the defaults-populated struct so keys absent from the
-	// YAML keep their default values (partial config files are valid).
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	// Decode into the defaults-populated struct so keys absent from the YAML
+	// keep their default values (partial config files are valid). KnownFields
+	// makes any key that isn't part of the schema a hard error rather than a
+	// silent no-op, so typos like "max_mesage_length" surface instead of being
+	// dropped and leaving the user on the default. An empty file decodes to
+	// io.EOF, which is not an error — it just means "all defaults".
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	if err := validate(cfg); err != nil {

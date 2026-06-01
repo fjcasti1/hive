@@ -242,6 +242,52 @@ func TestLoadRejectsInvalidFile(t *testing.T) {
 	}
 }
 
+// TestLoadRejectsUnknownKeys locks in strict decoding: a key that isn't part
+// of the schema (junk, or — the real footgun — a typo of a real key) must be a
+// hard error, not silently ignored. Otherwise a user who writes
+// "max_mesage_length: 5" thinks they set the limit but silently gets the default.
+func TestLoadRejectsUnknownKeys(t *testing.T) {
+	cases := map[string]string{
+		"unknown top-level key": "caca: 2\n",
+		"unknown nested key":    "notifications:\n    macoss: false\n",
+		"typo of a real key":    "queue:\n    max_mesage_length: 5\n",
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(ConfigPath(), []byte(content), 0o644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			if _, err := Load(); err == nil {
+				t.Errorf("expected Load to reject unknown key, got nil")
+			}
+		})
+	}
+}
+
+// TestLoadAcceptsEmptyFile guards the empty-document case: an empty file is not
+// a schema violation, it just means "all defaults". Strict decoding must not
+// turn the resulting io.EOF into an error.
+func TestLoadAcceptsEmptyFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(ConfigPath(), []byte(""), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load on empty file: %v", err)
+	}
+	if got, want := cfg.Queue.MaxMessageLength, 100; got != want {
+		t.Errorf("empty file: MaxMessageLength = %d, want %d (default)", got, want)
+	}
+}
+
 func TestValidate_BadHumanTemplate(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Status.HumanFormat = `{{ .BadTemplate`
