@@ -10,7 +10,7 @@ import (
 
 var nextCmd = &cobra.Command{
 	Use:   "next",
-	Short: "Switch to the next waiting session (FIFO)",
+	Short: "Switch to the next waiting agent (FIFO)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		doAck, _ := cmd.Flags().GetBool("ack")
 		doShow, _ := cmd.Flags().GetBool("show")
@@ -24,27 +24,38 @@ var nextCmd = &cobra.Command{
 			return nil
 		}
 
-		session, message := entry.Session, entry.Message
-
 		// --show prints the front-of-queue entry and exits without switching.
-		// It takes precedence over --ack, to avoid acknowledging a session
+		// It takes precedence over --ack, to avoid acknowledging an agent
 		// without switching to it.
 		if doShow {
-			fmt.Println(formatNextLine(session, message))
+			fmt.Println(formatNextLine(entry.Label, entry.Message))
 			return nil
 		}
 
-		if err := tmux.SwitchTo(entry.Target()); err != nil {
+		// An agent with no tmux pane (e.g. a bare process tracked only by cwd)
+		// can't be switched to. Report where it lives and leave it queued
+		// rather than silently acking something we couldn't reach.
+		target := entry.Target()
+		if target == "" {
+			fmt.Printf("%s is not in tmux — cannot switch", entry.Label)
+			if entry.Locator != "" {
+				fmt.Printf(" (%s)", entry.Locator)
+			}
+			fmt.Println()
+			return nil
+		}
+
+		if err := tmux.SwitchTo(target); err != nil {
 			return err
 		}
 
 		if doAck {
-			found, err := ackSession(database, session)
+			label, found, err := ackAgent(database, entry.AgentID)
 			if err != nil {
-				return fmt.Errorf("ack session=%q: %w", session, err)
+				return fmt.Errorf("ack agent=%q: %w", entry.AgentID, err)
 			}
 			if found {
-				fmt.Printf("Acknowledged session %q\n", session)
+				fmt.Printf("Acknowledged session %q\n", label)
 			}
 		}
 		return nil
@@ -52,16 +63,15 @@ var nextCmd = &cobra.Command{
 }
 
 func init() {
-	nextCmd.Flags().Bool("ack", false, "Acknowledge the session after switching")
-	nextCmd.Flags().Bool("show", false, "Show the next waiting session without switching")
+	nextCmd.Flags().Bool("ack", false, "Acknowledge the agent after switching")
+	nextCmd.Flags().Bool("show", false, "Show the next waiting agent without switching")
 }
 
 // formatNextLine renders the line printed when `next` reports the front-of-queue
-// entry without switching (the --show path, and the empty-queue case). found is
-// false when the queue is empty.
-func formatNextLine(session, message string) string {
+// entry without switching (the --show path, and the empty-queue case).
+func formatNextLine(label, message string) string {
 	if message != "" {
-		return fmt.Sprintf("%s — %s", session, message)
+		return fmt.Sprintf("%s — %s", label, message)
 	}
-	return session
+	return label
 }

@@ -40,7 +40,11 @@ func TestListCommand(t *testing.T) {
 			setupTest(t)
 
 			for _, e := range tc.entries {
-				if err := db.Enqueue(database, e.session, e.message, e.pane); err != nil {
+				locator := ""
+				if e.pane != "" {
+					locator = "pane:" + e.pane
+				}
+				if err := db.Enqueue(database, e.session, e.session, locator, e.message); err != nil {
 					t.Fatalf("Enqueue %s: %v", e.session, err)
 				}
 			}

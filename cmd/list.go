@@ -35,7 +35,7 @@ var listCmd = &cobra.Command{
 				if msg == "" {
 					msg = "-"
 				}
-				pane := e.Pane
+				pane := e.Target()
 				if pane == "" {
 					pane = "-"
 				}
@@ -43,7 +43,7 @@ var listCmd = &cobra.Command{
 					w,
 					"  %d\t%s\t%s\t%s\t%s\n",
 					i+1,
-					e.Session,
+					e.Label,
 					pane,
 					msg,
 					timeAgo(e.CreatedAt),

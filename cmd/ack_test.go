@@ -38,17 +38,17 @@ func TestAckSession(t *testing.T) {
 			setupTest(t)
 
 			if tc.enqueue {
-				if err := db.Enqueue(database, tc.session, "tests passing", "%1"); err != nil {
+				if err := db.Enqueue(database, tc.session, tc.session, "pane:%1", "tests passing"); err != nil {
 					t.Fatalf("Enqueue: %v", err)
 				}
 			}
 
-			found, err := ackSession(database, tc.session)
+			_, found, err := ackAgent(database, tc.session)
 			if err != nil {
-				t.Fatalf("ackSession: %v", err)
+				t.Fatalf("ackAgent: %v", err)
 			}
 			if found != tc.wantFound {
-				t.Errorf("ackSession found = %v, want %v", found, tc.wantFound)
+				t.Errorf("ackAgent found = %v, want %v", found, tc.wantFound)
 			}
 
 			entries, err := db.List(database)
@@ -134,7 +134,7 @@ func TestAckCommand(t *testing.T) {
 			// Two entries with the same-second created_at rely on insertion order
 			// (id) to break ties, so List returns them in enqueue order.
 			for _, s := range tc.enqueue {
-				if err := db.Enqueue(database, s, "", ""); err != nil {
+				if err := db.Enqueue(database, s, s, "", ""); err != nil {
 					t.Fatalf("Enqueue %s: %v", s, err)
 				}
 			}
@@ -169,8 +169,8 @@ func TestAckCommand(t *testing.T) {
 				t.Fatalf("queue has %d entries, want %d: %+v", len(entries), len(tc.wantQueue), entries)
 			}
 			for i, want := range tc.wantQueue {
-				if entries[i].Session != want {
-					t.Errorf("queue[%d].Session = %q, want %q", i, entries[i].Session, want)
+				if entries[i].Label != want {
+					t.Errorf("queue[%d].Label = %q, want %q", i, entries[i].Label, want)
 				}
 			}
 		})

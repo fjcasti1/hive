@@ -39,11 +39,11 @@ func TestHistoryCommand(t *testing.T) {
 
 			// Queue then acknowledge so each entry lands in history.
 			for _, e := range tc.seed {
-				if err := db.Enqueue(database, e.session, e.message, "%1"); err != nil {
+				if err := db.Enqueue(database, e.session, e.session, "pane:%1", e.message); err != nil {
 					t.Fatalf("Enqueue(%q): %v", e.session, err)
 				}
-				if _, err := ackSession(database, e.session); err != nil {
-					t.Fatalf("ackSession(%q): %v", e.session, err)
+				if _, _, err := ackAgent(database, e.session); err != nil {
+					t.Fatalf("ackAgent(%q): %v", e.session, err)
 				}
 			}
 

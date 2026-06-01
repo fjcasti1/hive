@@ -116,8 +116,8 @@ func TestNotifyCommand(t *testing.T) {
 				t.Fatalf("expected %d queued entry(ies), got %d", tc.wantCount, len(entries))
 			}
 			if tc.wantCount > 0 {
-				if entries[0].Session != tc.wantSession {
-					t.Errorf("session = %q, want %q", entries[0].Session, tc.wantSession)
+				if entries[0].Label != tc.wantSession {
+					t.Errorf("label = %q, want %q", entries[0].Label, tc.wantSession)
 				}
 				if entries[0].Message != tc.wantMessage {
 					t.Errorf("message = %q, want %q", entries[0].Message, tc.wantMessage)

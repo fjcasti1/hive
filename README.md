@@ -72,9 +72,12 @@ Common settings:
 ```bash
 hive config set notifications.macos false        # disable macOS popups
 hive config set notifications.tmux_bell false    # disable tmux bell
+hive config set notifications.slack_webhook https://hooks.slack.com/services/...  # post to Slack
 hive config set queue.max_message_length 80      # truncate long messages
 hive config set history.retention_days 14        # days to keep history (0 disables history)
 ```
+
+Set `notifications.slack_webhook` to a Slack [incoming-webhook](https://api.slack.com/messaging/webhooks) URL to mirror every notification into Slack; leave it empty (the default) to disable. The Slack mobile app then delivers the alerts to your phone — no separate push provider needed.
 
 `history.retention_days` controls how long resolved sessions are retained. The purge runs on every `hive` invocation that opens the database, deleting entries with a `resolved_at` older than the cutoff. Setting it to `0` makes the cutoff "now," so every invocation wipes the history table — effectively disabling history.
 
@@ -99,9 +102,9 @@ If you want to write your own, available template fields are:
 |---|---|---|
 | `.Count` | int | Total queue size |
 | `.Next` | object \| nil | Head of the queue; nil when `.Count == 0` |
-| `.Next.Session` | string | Session name |
+| `.Next.Session` | string | Agent's display label (tmux session name, or the agent's working-directory name when it runs outside tmux) |
 | `.Next.Message` | string | Agent's message (may be empty) |
-| `.Next.Pane` | string | tmux pane id (e.g., `%5`) |
+| `.Next.Pane` | string | tmux pane id (e.g., `%5`); empty for agents not in tmux |
 | `.Next.Age` | string | Pre-formatted age (e.g., `2m`) |
 | `.Queue` | array | Full queue, each entry with the same shape as `.Next` |
 
@@ -119,6 +122,8 @@ JSON output (`hive status --format=json`) is fixed-schema and not configurable.
 |---|---|
 | `Stop`, `StopFailure`, `Notification`, `Elicitation` | `hive notify` |
 | `UserPromptSubmit`, `PostToolUse`, `ElicitationResult`, `SessionEnd` | `hive ack` |
+
+Each agent is identified by its Claude conversation id, which hive reads from the hook's JSON payload on stdin. This means two agents running in the same tmux session (or anywhere outside tmux) get distinct queue entries instead of clobbering one another, and `hive ack` always clears the same entry `hive notify` created. Outside the hooks, override identity with `--id` / `$HIVE_AGENT_ID`, or label an agent with `-s`.
 
 Agents can also pass context:
 

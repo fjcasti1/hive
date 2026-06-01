@@ -40,8 +40,8 @@ func TestMigrateUp(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read goose version: %v", err)
 	}
-	if version != 3 {
-		t.Errorf("want schema version 3, got %d", version)
+	if version != 4 {
+		t.Errorf("want schema version 4, got %d", version)
 	}
 
 	// Idempotency: running migrate again should be a no-op.
@@ -73,7 +73,7 @@ func TestPeekSingleEntry(t *testing.T) {
 	}
 	defer database.Close()
 
-	if err := Enqueue(database, "alpha", "msg-a", "%1"); err != nil {
+	if err := Enqueue(database, "alpha", "alpha", "pane:%1", "msg-a"); err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
 
@@ -84,14 +84,14 @@ func TestPeekSingleEntry(t *testing.T) {
 	if entry == nil {
 		t.Fatal("expected entry, got nil")
 	}
-	if got, want := entry.Session, "alpha"; got != want {
-		t.Errorf("Session = %q, want %q", got, want)
+	if got, want := entry.Label, "alpha"; got != want {
+		t.Errorf("Label = %q, want %q", got, want)
 	}
 	if got, want := entry.Message, "msg-a"; got != want {
 		t.Errorf("Message = %q, want %q", got, want)
 	}
-	if got, want := entry.Pane, "%1"; got != want {
-		t.Errorf("Pane = %q, want %q", got, want)
+	if got, want := entry.Target(), "%1"; got != want {
+		t.Errorf("Target = %q, want %q", got, want)
 	}
 }
 
@@ -106,14 +106,14 @@ func TestPeekTiebreaksOnID(t *testing.T) {
 	// Without an id tiebreaker the ordering would be non-deterministic.
 	const sameTime = "2026-01-01 10:00:00"
 	if _, err := database.Exec(
-		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
-		"alpha", "first", "%1", sameTime,
+		`INSERT INTO queue (agent_id, label, locator, message, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"alpha", "alpha", "pane:%1", "first", sameTime,
 	); err != nil {
 		t.Fatalf("insert alpha: %v", err)
 	}
 	if _, err := database.Exec(
-		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
-		"beta", "second", "%2", sameTime,
+		`INSERT INTO queue (agent_id, label, locator, message, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"beta", "beta", "pane:%2", "second", sameTime,
 	); err != nil {
 		t.Fatalf("insert beta: %v", err)
 	}
@@ -125,8 +125,8 @@ func TestPeekTiebreaksOnID(t *testing.T) {
 	if entry == nil {
 		t.Fatal("expected entry, got nil")
 	}
-	if got, want := entry.Session, "alpha"; got != want {
-		t.Errorf("Session = %q, want %q (lower id wins on tie)", got, want)
+	if got, want := entry.Label, "alpha"; got != want {
+		t.Errorf("Label = %q, want %q (lower id wins on tie)", got, want)
 	}
 }
 
@@ -226,14 +226,14 @@ func TestPeekReturnsOldest(t *testing.T) {
 	// second-precision CURRENT_TIMESTAMP, which would race two consecutive
 	// Enqueue calls.
 	if _, err := database.Exec(
-		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
-		"alpha", "first", "%1", "2026-01-01 10:00:00",
+		`INSERT INTO queue (agent_id, label, locator, message, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"alpha", "alpha", "pane:%1", "first", "2026-01-01 10:00:00",
 	); err != nil {
 		t.Fatalf("insert alpha: %v", err)
 	}
 	if _, err := database.Exec(
-		`INSERT INTO queue (session, message, pane, created_at) VALUES (?, ?, ?, ?)`,
-		"beta", "second", "%2", "2026-01-01 10:00:01",
+		`INSERT INTO queue (agent_id, label, locator, message, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"beta", "beta", "pane:%2", "second", "2026-01-01 10:00:01",
 	); err != nil {
 		t.Fatalf("insert beta: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestPeekReturnsOldest(t *testing.T) {
 	if entry == nil {
 		t.Fatal("expected entry, got nil")
 	}
-	if got, want := entry.Session, "alpha"; got != want {
-		t.Errorf("Session = %q, want %q (oldest first)", got, want)
+	if got, want := entry.Label, "alpha"; got != want {
+		t.Errorf("Label = %q, want %q (oldest first)", got, want)
 	}
 }
