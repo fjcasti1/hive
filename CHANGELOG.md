@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.6.0](https://github.com/fjcasti1/hive/compare/v1.5.0...v1.6.0) (2026-06-01)
+
+
+### 🎁 New Features
+
+* Add --show flag to next command ([#37](https://github.com/fjcasti1/hive/issues/37)) ([8ece0fe](https://github.com/fjcasti1/hive/commit/8ece0fed1dbafe5e94fcb82f11e8aa62e9dbceee))
+* Add `hive config reset <key>` to restore a single key to its ([d0bfbfd](https://github.com/fjcasti1/hive/commit/d0bfbfdfb0f93c82a4ece61b25836a48a0574051))
+* Add hive status command with configurable templates, presets, and config edit/reset ([#34](https://github.com/fjcasti1/hive/issues/34)) ([d0bfbfd](https://github.com/fjcasti1/hive/commit/d0bfbfdfb0f93c82a4ece61b25836a48a0574051))
+* Create config file with defaults on first run ([#39](https://github.com/fjcasti1/hive/issues/39)) ([0ad65f8](https://github.com/fjcasti1/hive/commit/0ad65f8f3739c06eb0a5fb03b855cbd8d173e736))
+* Ship built-in template presets selectable with an `[@name](https://github.com/name)` prefix ([d0bfbfd](https://github.com/fjcasti1/hive/commit/d0bfbfdfb0f93c82a4ece61b25836a48a0574051))
+
+
+### 🐛 Bug Fixes
+
+* Change config `Load` to no longer auto-write a defaults file on ([d0bfbfd](https://github.com/fjcasti1/hive/commit/d0bfbfdfb0f93c82a4ece61b25836a48a0574051))
+* JSON output is a fixed, non-templated schema (`count`, `next`, ([d0bfbfd](https://github.com/fjcasti1/hive/commit/d0bfbfdfb0f93c82a4ece61b25836a48a0574051))
+* Reject unknown config keys with strict YAML decoding ([#40](https://github.com/fjcasti1/hive/issues/40)) ([5fd4a80](https://github.com/fjcasti1/hive/commit/5fd4a8016538b3095654734a2f11cf24afdaf2c8))
+
+
+### 📚 Documentation
+
+* **internal:** add godocs ([8ece0fe](https://github.com/fjcasti1/hive/commit/8ece0fed1dbafe5e94fcb82f11e8aa62e9dbceee))
+
+
+### 💫 Code Refactoring
+
+* **db:** rename internal method Peek -&gt; Show ([8ece0fe](https://github.com/fjcasti1/hive/commit/8ece0fed1dbafe5e94fcb82f11e8aa62e9dbceee))
+
+
+### 🧪 Tests
+
+* Add cmd-package tests ([#38](https://github.com/fjcasti1/hive/issues/38)) ([4d2919a](https://github.com/fjcasti1/hive/commit/4d2919af7a6eb61ac386b3d5e513fa3167225be5))
+
 ## [1.5.0](https://github.com/fjcasti1/hive/compare/v1.4.0...v1.5.0) (2026-05-03)
 
 
