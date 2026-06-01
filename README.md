@@ -58,7 +58,7 @@ hive doctor    # verify everything is wired up
 
 ## Configuration
 
-Config lives at `~/.hive/config.yaml`. The file appears the first time you customize something — running `hive` with no config in place uses the built-in defaults silently. Four ways to manage it:
+Config lives at `~/.hive/config.yaml`. The file is created on first run with the built-in defaults, so there's always a complete file to read and edit. Four ways to manage it:
 
 ```bash
 hive config show                                 # print the current effective configuration
