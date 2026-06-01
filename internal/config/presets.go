@@ -67,3 +67,62 @@ func presetNames(presets map[string]string) []string {
 	sort.Strings(names)
 	return names
 }
+
+// PresetKeys returns the config keys that support presets, in stable order.
+// Used by `hive config presets` to enumerate the discoverable surface.
+func PresetKeys() []string {
+	return []string{"status.human_format", "status.tmux_format"}
+}
+
+// PresetNames returns the available preset names for a given config key,
+// or nil (and a friendly error via the second return) if the key has no
+// preset library.
+func PresetNames(key string) ([]string, error) {
+	presets := presetsForKey(key)
+	if presets == nil {
+		return nil, fmt.Errorf("config: %q does not support presets", key)
+	}
+	return presetNames(presets), nil
+}
+
+// PresetContent returns the template content of a named preset for a given
+// config key. Used by `hive config preset <key> <name>` to print a preset
+// for inspection or piping into a custom template file.
+func PresetContent(key, name string) (string, error) {
+	return resolvePreset(key, name)
+}
+
+// IsReservedPresetName reports whether name matches a built-in preset name
+// in any preset library. Reserved names cannot be used as custom template
+// filenames because the resolver would shadow the file with the preset.
+func IsReservedPresetName(name string) bool {
+	for _, key := range PresetKeys() {
+		if presets := presetsForKey(key); presets != nil {
+			if _, ok := presets[name]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// LookupPresetByName searches all preset libraries for a name and returns
+// the matching content, the keys it appeared under, and any error. Used
+// by `template new --from <source>` to seed without requiring the caller
+// to know which key owns the preset.
+func LookupPresetByName(name string) (content string, foundIn []string, err error) {
+	for _, key := range PresetKeys() {
+		presets := presetsForKey(key)
+		if presets == nil {
+			continue
+		}
+		if c, ok := presets[name]; ok {
+			content = c
+			foundIn = append(foundIn, key)
+		}
+	}
+	if len(foundIn) == 0 {
+		return "", nil, fmt.Errorf("preset %q not found", name)
+	}
+	return content, foundIn, nil
+}

@@ -64,7 +64,13 @@ Config lives at `~/.hive/config.yaml`. The file is created on first run with the
 hive config show                                 # print the current effective configuration
 hive config set <key> <value>                    # set one key, persist
 hive config reset <key>                          # restore one key to its default
-hive config edit                                 # open the file in $EDITOR with validation
+hive config edit                                 # open the YAML file in $EDITOR with validation
+hive config presets                              # list built-in template presets
+hive config preset <key> <name>                  # print one preset to stdout
+
+hive config template new <name>                  # create ~/.hive/templates/<name>.tmpl, open in $EDITOR
+hive config template edit <name>                 # open ~/.hive/templates/<name>.tmpl in $EDITOR
+hive config template list                        # list templates in ~/.hive/templates/
 ```
 
 Common settings:
@@ -80,34 +86,22 @@ hive config set history.retention_days 14        # days to keep history (0 disab
 
 ### Status format templates
 
-`status.human_format` and `status.tmux_format` are Go [`text/template`](https://pkg.go.dev/text/template) strings rendered against the queue. The default human format produces ANSI-bold/dim output when `hive status` is connected to a terminal; pipes and redirects automatically receive plain text.
+`status.human_format` and `status.tmux_format` are stored in YAML as **bare names** — either a built-in preset or a custom template at `~/.hive/templates/<name>.tmpl`:
 
-For the common cases, use a built-in **preset** instead of writing your own template — prefix the value with `@`:
-
-```bash
-hive config set status.human_format @compact     # one-line summary
-hive config set status.human_format @verbose     # multi-line with pane info
-hive config set status.human_format @default     # back to the shipped default
-hive config set status.tmux_format  @minimal     # tighter status-bar output
+```yaml
+status:
+    human_format: default      # built-in preset
+    tmux_format:  minimal      # built-in preset
+    human_format: example      # custom template at ~/.hive/templates/example.tmpl
 ```
 
-`hive config set status.human_format @bogus` will fail and list the available preset names.
+```bash
+hive config set status.human_format compact     # built-in compact preset
+hive config template new mine                   # create + edit a custom template
+hive config set status.human_format mine        # use the custom template
+```
 
-If you want to write your own, available template fields are:
-
-| Field | Type | Description |
-|---|---|---|
-| `.Count` | int | Total queue size |
-| `.Next` | object \| nil | Head of the queue; nil when `.Count == 0` |
-| `.Next.Session` | string | Session name |
-| `.Next.Message` | string | Agent's message (may be empty) |
-| `.Next.Pane` | string | tmux pane id (e.g., `%5`) |
-| `.Next.Age` | string | Pre-formatted age (e.g., `2m`) |
-| `.Queue` | array | Full queue, each entry with the same shape as `.Next` |
-
-Helper functions registered on top of `text/template` built-ins: `add a b`, `bold v`, `dim v`. (`bold` and `dim` emit ANSI when stdout is a TTY, plain text otherwise.) The `slice`, `len`, `printf`, `if`/`else`, and `range` you'd expect from text/template all work too. Use conditionals to collapse punctuation when a field is empty, e.g. `{{ if .Next.Message }}: {{ .Next.Message }}{{ end }}`.
-
-If you break a template, `hive config edit` reopens the file with the validation error as a comment so you can fix it. As a last resort, `hive config reset status.human_format` restores the shipped default.
+For preset listings, custom-template authoring, the available data fields, helper functions, and template syntax: **see [TEMPLATES.md](./TEMPLATES.md)**.
 
 JSON output (`hive status --format=json`) is fixed-schema and not configurable.
 

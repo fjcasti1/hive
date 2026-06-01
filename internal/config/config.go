@@ -73,9 +73,11 @@ func defaultConfig() *Config {
 		History: History{
 			RetentionDays: 7,
 		},
+		// Defaults reference the preset library by bare name. Resolution
+		// happens via ResolveTemplate at validate/render time.
 		Status: Status{
-			HumanFormat: defaultHumanFormat,
-			TmuxFormat:  defaultTmuxFormat,
+			HumanFormat: "default",
+			TmuxFormat:  "default",
 		},
 	}
 }
@@ -171,10 +173,9 @@ func Save(cfg *Config) error {
 // Supports bool, int, and string field types. Returns an error on unknown
 // key, mid-path leaf, or value that doesn't parse as the field's type.
 //
-// For string-typed fields, a value starting with "@" is interpreted as a
-// preset name (e.g., `@compact`). The preset library is consulted via
-// resolvePreset; unknown preset names return an error listing what's
-// available for the target key.
+// For template-shaped string fields (status.human_format, status.tmux_format),
+// the value is stored as-is. Resolution of `@<preset>` references and file
+// paths happens at validate/execute time via ResolveTemplate.
 func Set(cfg *Config, key, value string) error {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(cfg).Elem()
@@ -188,18 +189,67 @@ func Set(cfg *Config, key, value string) error {
 			return fmt.Errorf("config: unknown key %q", key)
 		}
 		if i == len(parts)-1 {
-			if field.Kind() == reflect.String && strings.HasPrefix(value, "@") {
-				resolved, err := resolvePreset(key, value[1:])
-				if err != nil {
-					return err
-				}
-				value = resolved
-			}
 			return assignField(field, value)
 		}
 		v = field
 	}
 	return nil
+}
+
+// ResolveTemplate interprets a template-shaped config value and returns the
+// actual template content. Values are bare names — the resolver checks two
+// places, in order:
+//
+//  1. The preset library for the given key. Preset names are reserved
+//     (can't be used as custom template names), so a hit here is always
+//     a built-in.
+//  2. ~/.hive/templates/<name>.tmpl. Any user-authored template lives here.
+//
+// Returns an error if the name matches neither, or contains illegal
+// characters (path separators, `..`).
+func ResolveTemplate(key, name string) (string, error) {
+	if err := validateTemplateName(name); err != nil {
+		return "", fmt.Errorf("%s: %w", key, err)
+	}
+	if presets := presetsForKey(key); presets != nil {
+		if content, ok := presets[name]; ok {
+			return content, nil
+		}
+	}
+	path := filepath.Join(os.Getenv("HOME"), ".hive", "templates", name+".tmpl")
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return string(data), nil
+	}
+	if os.IsNotExist(err) {
+		hint := ""
+		if presets := presetsForKey(key); presets != nil {
+			hint = fmt.Sprintf(" (presets for %s: %s; or create ~/.hive/templates/%s.tmpl via 'hive config template new %s')",
+				key, strings.Join(presetNames(presets), ", "), name, name)
+		}
+		return "", fmt.Errorf("%s: template %q not found%s", key, name, hint)
+	}
+	return "", fmt.Errorf("%s: read template %s: %w", key, path, err)
+}
+
+// ValidateTemplateName returns an error if name is not a valid bare template
+// name (contains path separators, traversal, or is empty). Exported so the
+// cmd-side `template new --from` resolver can pre-check user input.
+func ValidateTemplateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("template name %q must not contain path separators", name)
+	}
+	if name == "." || name == ".." || strings.Contains(name, "..") {
+		return fmt.Errorf("template name %q is not allowed", name)
+	}
+	return nil
+}
+
+func validateTemplateName(name string) error {
+	return ValidateTemplateName(name)
 }
 
 // Reset restores the field at the dotted yaml-tag path key to its default
@@ -237,10 +287,18 @@ func validate(cfg *Config) error {
 	if cfg.History.RetentionDays < 0 {
 		return fmt.Errorf("history.retention_days must be >= 0, got %d", cfg.History.RetentionDays)
 	}
-	if _, err := template.New("status.human_format").Funcs(TemplateFuncs()).Parse(cfg.Status.HumanFormat); err != nil {
+	humanResolved, err := ResolveTemplate("status.human_format", cfg.Status.HumanFormat)
+	if err != nil {
 		return fmt.Errorf("status.human_format: %w", err)
 	}
-	if _, err := template.New("status.tmux_format").Funcs(TemplateFuncs()).Parse(cfg.Status.TmuxFormat); err != nil {
+	if _, err := template.New("status.human_format").Funcs(TemplateFuncs()).Parse(humanResolved); err != nil {
+		return fmt.Errorf("status.human_format: %w", err)
+	}
+	tmuxResolved, err := ResolveTemplate("status.tmux_format", cfg.Status.TmuxFormat)
+	if err != nil {
+		return fmt.Errorf("status.tmux_format: %w", err)
+	}
+	if _, err := template.New("status.tmux_format").Funcs(TemplateFuncs()).Parse(tmuxResolved); err != nil {
 		return fmt.Errorf("status.tmux_format: %w", err)
 	}
 	return nil

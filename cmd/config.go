@@ -64,6 +64,49 @@ Examples:
 	},
 }
 
+var configPresetsCmd = &cobra.Command{
+	Use:   "presets",
+	Short: "List built-in template presets for status.human_format and status.tmux_format",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		for _, key := range config.PresetKeys() {
+			names, err := config.PresetNames(key)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s:\n", key)
+			for _, n := range names {
+				fmt.Printf("  %s\n", n)
+			}
+			fmt.Println()
+		}
+		return nil
+	},
+}
+
+var configPresetCmd = &cobra.Command{
+	Use:   "preset <key> <name>",
+	Short: "Print the template content of a built-in preset",
+	Long: `Print the template content of a built-in preset to stdout. Useful
+for bootstrapping a custom template file:
+
+  hive config preset status.human_format verbose > ~/.hive/templates/mine.tmpl
+  $EDITOR ~/.hive/templates/mine.tmpl
+  hive config set status.human_format ~/.hive/templates/mine.tmpl
+
+Run 'hive config presets' to see available preset names.
+`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key, name := args[0], args[1]
+		content, err := config.PresetContent(key, name)
+		if err != nil {
+			return err
+		}
+		fmt.Print(content)
+		return nil
+	},
+}
+
 var configResetCmd = &cobra.Command{
 	Use:   "reset <key>",
 	Short: "Reset a configuration key to its default value",
@@ -95,5 +138,8 @@ func init() {
 		configSetCmd,
 		configResetCmd,
 		configEditCmd,
+		configPresetsCmd,
+		configPresetCmd,
+		configTemplateCmd,
 	)
 }
